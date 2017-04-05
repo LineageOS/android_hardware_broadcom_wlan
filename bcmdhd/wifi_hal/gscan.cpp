@@ -74,6 +74,7 @@ typedef enum {
     GSCAN_ATTRIBUTE_RSSI_HIGH,
     GSCAN_ATTRIBUTE_HOTLIST_ELEM,
     GSCAN_ATTRIBUTE_HOTLIST_FLUSH,
+    GSCAN_ATTRIBUTE_HOTLIST_BSSID_COUNT,
 
     /* remaining reserved for additional attributes */
     GSCAN_ATTRIBUTE_RSSI_SAMPLE_SIZE = 60,
@@ -1016,6 +1017,11 @@ public:
             return result;
         }
 
+        result = request.put_u32(GSCAN_ATTRIBUTE_HOTLIST_BSSID_COUNT, mParams.num_bssid);
+        if (result < 0) {
+            return result;
+        }
+
         struct nlattr * attr = request.attr_start(GSCAN_ATTRIBUTE_HOTLIST_BSSIDS);
         for (int i = 0; i < mParams.num_bssid; i++) {
             nlattr *attr2 = request.attr_start(GSCAN_ATTRIBUTE_HOTLIST_ELEM);
@@ -1174,6 +1180,10 @@ public:
         }
     }
     int createSetupRequest(WifiRequest& request) {
+        if (epno_params.num_networks > MAX_EPNO_NETWORKS) {
+            ALOGE("wrong epno num_networks:%d", epno_params.num_networks);
+            return WIFI_ERROR_INVALID_ARGS;
+        }
         int result = request.create(GOOGLE_OUI, GSCAN_SUBCMD_SET_EPNO_SSID);
         if (result < 0) {
             return result;
