@@ -35,6 +35,7 @@ LOCAL_SRC_FILES := \
 	wifi_logger.cpp \
 	wifi_offload.cpp
 
+LOCAL_SHARED_LIBRARIES := liblog libutils
 LOCAL_MODULE := libwifi-hal-bcm
 LOCAL_PROPRIETARY_MODULE := true
 

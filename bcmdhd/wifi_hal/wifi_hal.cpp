@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <unistd.h>
 #include <fcntl.h>
 #include <sys/socket.h>
 #include <netlink/genl/genl.h>
@@ -25,7 +26,7 @@
 
 #define LOG_TAG  "WifiHAL"
 
-#include <utils/Log.h>
+#include <log/log.h>
 
 #include "wifi_hal.h"
 #include "common.h"
