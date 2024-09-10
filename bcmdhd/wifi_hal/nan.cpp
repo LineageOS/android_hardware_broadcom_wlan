@@ -1524,9 +1524,10 @@ class NanPairingPrimitive : public WifiCommand
                     }
                 }
 
-                if (!pairing_confirm_event.npk_security_association.cipher_type ||
+                if (!pairing_confirm_event.rsp_code &&
+                        (!pairing_confirm_event.npk_security_association.cipher_type ||
                         !pairing_confirm_event.npk_security_association.npk.pmk_len ||
-                        !pairing_confirm_event.pairing_instance_id) {
+                        !pairing_confirm_event.pairing_instance_id)) {
                     ALOGE("Check invalid params received csid: 0x%x pmk_len: %u pairing_id: %u\n",
                             pairing_confirm_event.npk_security_association.cipher_type,
                             pairing_confirm_event.npk_security_association.npk.pmk_len,
@@ -7275,9 +7276,10 @@ class NanEventCap : public WifiCommand
                         }
                     }
 
-                    if (!pairing_confirm_event.npk_security_association.cipher_type ||
+                    if (!pairing_confirm_event.rsp_code &&
+                            (!pairing_confirm_event.npk_security_association.cipher_type ||
                             !pairing_confirm_event.npk_security_association.npk.pmk_len ||
-                            !pairing_confirm_event.pairing_instance_id) {
+                            !pairing_confirm_event.pairing_instance_id)) {
                         ALOGE("Check invalid params received csid:0x%x pmk_len:%u pairing_id: %u\n",
                                 pairing_confirm_event.npk_security_association.cipher_type,
                                 pairing_confirm_event.npk_security_association.npk.pmk_len,
