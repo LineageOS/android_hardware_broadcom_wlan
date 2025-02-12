@@ -1053,6 +1053,7 @@ wifi_error wifi_twt_get_capabilities(wifi_interface_handle iface,
     wifi_error ret = WIFI_SUCCESS;
     TwtFeatureRequest *cmd;
     TwtRequestType cmdType = TWT_GET_CAPABILITIES;
+    memset(capabilities, 0, sizeof(wifi_twt_capabilities));
 
     if (iface == NULL) {
         ALOGE("wifi_twt_get_capability: NULL iface pointer provided."
@@ -1072,6 +1073,7 @@ wifi_error wifi_twt_get_capabilities(wifi_interface_handle iface,
     ret = (wifi_error)cmd->open();
     if (ret != WIFI_SUCCESS) {
         ALOGE("%s : failed in create twt_cap req, error = %d\n", __func__, ret);
+        ret = WIFI_ERROR_NOT_SUPPORTED;
     }
     cmd->releaseRef();
     return ret;
