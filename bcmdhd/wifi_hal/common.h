@@ -615,8 +615,8 @@ typedef struct rtt_capabilities {
 } rtt_capabilities_t;
 
 typedef u16 rtt_cap_preamble_type_t;
-typedef u16 rtt_akm_type_t;
-typedef u16 rtt_cipher_type_t;
+typedef u16 base_akm_type_t;
+typedef u16 rtt_cipher_suite_t;
 /* RTT Capabilities v2 (11az support) */
 typedef struct rtt_capabilities_mc_az {
     struct rtt_capabilities rtt_capab;
@@ -630,13 +630,13 @@ typedef struct rtt_capabilities_mc_az {
     /* if 11az non-TB responder is supported */
     u8 ntb_responder_supported;
     /* if 11az secure ltf is supported */
-    u8 secure_ltf_supported;
+    u8 secure_he_ltf_supported;
     /* if 11az protected ranging frame is supported */
     u8 protected_rtt_frm_supported;
     /* Supported AKM for secure ranging */
-    rtt_akm_type_t akm_type_supported;
+    base_akm_type_t supported_akms;
     /* Supported cipher type for secure ranging */
-    rtt_cipher_type_t cipher_type_supported;
+    rtt_cipher_suite_t supported_cipher_suites;
 } rtt_capabilities_mc_az_t;
 #endif
 
