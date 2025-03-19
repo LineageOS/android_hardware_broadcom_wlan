@@ -1780,7 +1780,6 @@ public:
         for (nl_iterator it(vendor_data); it.has_next(); it.next()) {
             buf_attr = it.get_type();
             switch (buf_attr) {
-                case DUMP_BUF_ATTR_MEMDUMP:
                 case DUMP_BUF_ATTR_TIMESTAMP:
                 case DUMP_BUF_ATTR_ECNTRS:
                 case DUMP_BUF_ATTR_DHD_DUMP:
@@ -1793,7 +1792,8 @@ public:
                 case DUMP_BUF_ATTR_PKTID_MAP_LOG:
                 case DUMP_BUF_ATTR_PKTID_UNMAP_LOG: {
                     if (it.get_u32()) {
-                        ALOGE("Copying data to userspace failed, status = %d\n", it.get_u32());
+                        ALOGE("Copying data to userspace failed for buf attr = %s, status = %d\n",
+                            EWP_CmdAttrToString(buf_attr), it.get_u32());
                         return WIFI_ERROR_UNKNOWN;
                     }
                     index = logger_attr_buffer_lookup(buf_attr);
@@ -1807,6 +1807,7 @@ public:
                         return WIFI_ERROR_UNKNOWN;
                     }
                     if (!mBuff || attr_type_len[len_attr] <= 0) {
+                        ALOGE("buff is empty for attr = %s\n", EWP_CmdAttrToString(buf_attr));
                         return WIFI_ERROR_UNKNOWN;
                     }
 
@@ -1910,7 +1911,6 @@ public:
             for (nl_iterator it(vendor_data); it.has_next(); it.next()) {
                 int attr = it.get_type();
                 switch (attr) {
-                    case DUMP_LEN_ATTR_MEMDUMP:
                     case DUMP_LEN_ATTR_TIMESTAMP:
                     case DUMP_LEN_ATTR_ECNTRS:
                     case DUMP_LEN_ATTR_DHD_DUMP:
