@@ -538,6 +538,7 @@ static const char *RttTypeToString(wifi_rtt_type type)
         C2S(RTT_TYPE_2_SIDED)
         /* C2S(RTT_TYPE_2_SIDED_11MC) is same as above */
         C2S(RTT_TYPE_2_SIDED_11AZ_NTB)
+        C2S(RTT_TYPE_2_SIDED_11AZ_NTB_SECURE)
         default:
             return "UNKNOWN TYPE";
     }
@@ -612,6 +613,13 @@ struct rtt_params_v3 {
     u64 ntb_max_measurement_time;
     u32 num_frames_per_burst;
 };
+
+wifi_rtt_akm base_akm = WPA_KEY_MGMT_NONE;
+wifi_rtt_cipher_suite pairwise_cipher_suite = WPA_CIPHER_NONE;
+bool enable_secure_he_ltf = false;
+bool enable_ranging_frame_protection = false;
+char passphrase[RTT_SECURITY_MAX_PASSPHRASE_LEN] = {0};
+u32 passphrase_len = 0;
 
 struct rtt_params default_rtt_param = {0, 0, 0, 0, 0, 15, 0, 0, 0, 0, RTT_TYPE_2_SIDED};
 struct rtt_params_v3 default_rtt_param_v3 = {5000, 500, 5};
@@ -1234,74 +1242,102 @@ static int removeDuplicateScanResults(wifi_scan_result **results, int num) {
     return num_results;
 }
 
-static void onRTTResultsV3(wifi_request_id id, unsigned num_results,
-    wifi_rtt_result_v3 *result[]) {
+static void onRTTResultsV4(wifi_request_id id, unsigned num_results,
+    wifi_rtt_result_v4 *result[]) {
 
     printMsg("RTT results: num_results %d\n", num_results);
-    wifi_rtt_result_v3 *rtt_result_v3;
+    wifi_rtt_result *rtt_result_v1 = NULL;
+    wifi_rtt_result_v2 *rtt_result_v2 = NULL;
+    wifi_rtt_result_v3 *rtt_result_v3 = NULL;
+    wifi_rtt_result_v4 *rtt_result_v4 = NULL;
+
     mac_addr addr = {0};
 
     for (unsigned i = 0; i < num_results; i++) {
-        rtt_result_v3 = result[i];
-        if (memcmp(addr, rtt_result_v3->rtt_result.rtt_result.addr, sizeof(mac_addr))) {
-            printMsg("Target mac : %02x:%02x:%02x:%02x:%02x:%02x\n",
-                    rtt_result_v3->rtt_result.rtt_result.addr[0],
-                    rtt_result_v3->rtt_result.rtt_result.addr[1],
-                    rtt_result_v3->rtt_result.rtt_result.addr[2],
-                    rtt_result_v3->rtt_result.rtt_result.addr[3],
-                    rtt_result_v3->rtt_result.rtt_result.addr[4],
-                    rtt_result_v3->rtt_result.rtt_result.addr[5]);
-            memcpy(addr, rtt_result_v3->rtt_result.rtt_result.addr, sizeof(mac_addr));
-        }
+        rtt_result_v4 = result[i];
+        if (rtt_result_v4) {
+            rtt_result_v3 = &rtt_result_v4->rtt_result_v3;
+            if (rtt_result_v3) {
+                rtt_result_v2 = &rtt_result_v3->rtt_result;
+                if (rtt_result_v2) {
+                    printMsg("RTT results: target %d\n", i);
+                    rtt_result_v1 = &rtt_result_v2->rtt_result;
+                    if (rtt_result_v1) {
+                        if (memcmp(addr, rtt_result_v1->addr, sizeof(mac_addr))) {
+                            printMsg("Target mac : %02x:%02x:%02x:%02x:%02x:%02x\n",
+                                    rtt_result_v1->addr[0], rtt_result_v1->addr[1],
+                                    rtt_result_v1->addr[2], rtt_result_v1->addr[3],
+                                    rtt_result_v1->addr[4], rtt_result_v1->addr[5]);
+                            memcpy(addr, rtt_result_v1->addr, sizeof(mac_addr));
+                        }
+                        printMsg("\tburst_num : %d,"
+                                " measurement_number : %d,\n"
+                                "\tsuccess_number : %d,"
+                                " number_per_burst_peer : %d,\n"
+                                "\tstatus : %d,"
+                                " retry_after_duration : %ds,\n"
+                                "\ttype : %d, rssi : %d dbm, rx_rate : %d"
+                                " Kbps, rtt : %lu ps,\n"
+                                "\trtt_sd : %lu ps, distance : %d mm,"
+                                " burst_duration : %d ms,\n"
+                                "\tnegotiated_burst_num : %d,\n",
+                                rtt_result_v1->burst_num,
+                                rtt_result_v1->measurement_number,
+                                rtt_result_v1->success_number,
+                                rtt_result_v1->number_per_burst_peer,
+                                rtt_result_v1->status,
+                                rtt_result_v1->retry_after_duration,
+                                rtt_result_v1->type,
+                                rtt_result_v1->rssi,
+                                rtt_result_v1->rx_rate.bitrate * 100,
+                                (unsigned long)rtt_result_v1->rtt,
+                                (unsigned long)rtt_result_v1->rtt_sd,
+                                rtt_result_v1->distance_mm,
+                                rtt_result_v1->burst_duration,
+                                rtt_result_v1->negotiated_burst_num);
 
-        printMsg("\tburst_num : %d, measurement_number : %d,\n"
-                "\tsuccess_number : %d, number_per_burst_peer : %d,\n"
-                "\tstatus : %d, retry_after_duration : %ds,\n"
-                "\ttype : %d, rssi : %d dbm, rx_rate : %d Kbps, rtt : %lu ps,\n"
-                "\trtt_sd : %lu ps, distance : %d mm, burst_duration : %d ms,\n"
-                "\tnegotiated_burst_num : %d, frequency : %d, packet_bw : %d\n",
-                rtt_result_v3->rtt_result.rtt_result.burst_num,
-                rtt_result_v3->rtt_result.rtt_result.measurement_number,
-                rtt_result_v3->rtt_result.rtt_result.success_number,
-                rtt_result_v3->rtt_result.rtt_result.number_per_burst_peer,
-                rtt_result_v3->rtt_result.rtt_result.status,
-                rtt_result_v3->rtt_result.rtt_result.retry_after_duration,
-                rtt_result_v3->rtt_result.rtt_result.type,
-                rtt_result_v3->rtt_result.rtt_result.rssi,
-                rtt_result_v3->rtt_result.rtt_result.rx_rate.bitrate * 100,
-                (unsigned long)rtt_result_v3->rtt_result.rtt_result.rtt,
-                (unsigned long)rtt_result_v3->rtt_result.rtt_result.rtt_sd,
-                rtt_result_v3->rtt_result.rtt_result.distance_mm,
-                rtt_result_v3->rtt_result.rtt_result.burst_duration,
-                rtt_result_v3->rtt_result.rtt_result.negotiated_burst_num,
-                rtt_result_v3->rtt_result.frequency,
-                rtt_result_v3->rtt_result.packet_bw);
+                        if (rtt_result_v1->LCI) {
+                                printMsg("LCI id %d\n", rtt_result_v1->LCI->id);
+                                printMsg("LCI Len %d\n", rtt_result_v1->LCI->len);
+                                prhex_msg("LCI data", rtt_result_v1->LCI->data,
+                                        rtt_result_v1->LCI->len);
+                        }
+                        if (rtt_result_v1->LCR) {
+                                printMsg("LCR id %d\n", rtt_result_v1->LCR->id);
+                                printMsg("LCR Len %d\n", rtt_result_v1->LCR->len);
+                                prhex_msg("LCR data", rtt_result_v1->LCR->data,
+                                        rtt_result_v1->LCR->len);
+                        }
+                    }
+                    printMsg("\tfrequency : %d, packet_bw : %d\n",
+                            rtt_result_v2->frequency, rtt_result_v2->packet_bw);
+                }
 
-        if (rtt_result_v3->rtt_result.rtt_result.LCI) {
-            printMsg("LCI id %d\n", rtt_result_v3->rtt_result.rtt_result.LCI->id);
-            printMsg("LCI Len %d\n", rtt_result_v3->rtt_result.rtt_result.LCI->len);
-            prhex_msg("LCI data",
-                    rtt_result_v3->rtt_result.rtt_result.LCI->data,
-                    rtt_result_v3->rtt_result.rtt_result.LCI->len);
-        }
+                if ((rtt_result_v1->type == RTT_TYPE_2_SIDED_11AZ_NTB) ||
+                        (rtt_result_v1->type == RTT_TYPE_2_SIDED_11AZ_NTB_SECURE)) {
+                        printMsg("\ti2r_tx_ltf_repetition_cnt: %u,\n"
+                                " \tr2i_tx_ltf_repetition_cnt: %u,\n"
+                                " \tntb min meas_time: %lu units of 100us,\n"
+                                " \tntb max meas_time: %lu units of 10ms\n",
+                                rtt_result_v3->i2r_tx_ltf_repetition_count,
+                                rtt_result_v3->r2i_tx_ltf_repetition_count,
+                                rtt_result_v3->ntb_min_measurement_time,
+                                rtt_result_v3->ntb_max_measurement_time);
+                }
+            }
 
-        if (rtt_result_v3->rtt_result.rtt_result.LCR) {
-            printMsg("LCR id %d\n", rtt_result_v3->rtt_result.rtt_result.LCR->id);
-            printMsg("LCR Len %d\n", rtt_result_v3->rtt_result.rtt_result.LCR->len);
-            prhex_msg("LCR data",
-                    rtt_result_v3->rtt_result.rtt_result.LCR->data,
-                    rtt_result_v3->rtt_result.rtt_result.LCR->len);
-        }
-
-        if (rtt_result_v3->rtt_result.rtt_result.type == RTT_TYPE_2_SIDED_11AZ_NTB) {
-            printMsg("\t i2r_tx_ltf_repetition_cnt: %u,\n"
-                    " \t r2i_tx_ltf_repetition_cnt: %u,\n"
-                    " \t ntb min meas_time: %lu units of 100us,\n"
-                    " \t ntb max meas_time: %lu units of 10ms\n",
-                    rtt_result_v3->i2r_tx_ltf_repetition_count,
-                    rtt_result_v3->r2i_tx_ltf_repetition_count,
-                    rtt_result_v3->ntb_min_measurement_time,
-                    rtt_result_v3->ntb_max_measurement_time);
+            if (rtt_result_v1->type == RTT_TYPE_2_SIDED_11AZ_NTB_SECURE) {
+                printMsg("\tis_ranging_protection_enabled: %u,\n"
+                        " \tis_secure_he_ltf_enabled: %u,\n"
+                        " \trtt_akm %x,\n"
+                        " \tcipher_suite %x,\n"
+                        " \tsecure_he_ltf_protocol_version %d\n",
+                        rtt_result_v4->is_ranging_protection_enabled,
+                        rtt_result_v4->is_secure_he_ltf_enabled,
+                        rtt_result_v4->base_akm,
+                        rtt_result_v4->cipher_suite,
+                        rtt_result_v4->secure_he_ltf_protocol_version);
+            }
         }
     }
 
@@ -1545,7 +1581,12 @@ static void testRTT()
     int result = 0;
     /* Run by a provided rtt-ap-list file */
     FILE* w_fp = NULL;
-    wifi_rtt_config_v3 params[max_ap];
+    wifi_rtt_config_v4 params[max_ap];
+    wifi_rtt_config *rtt_config_v1 = NULL;
+    wifi_rtt_config_v3 *rtt_config = NULL;
+    wifi_rtt_secure_config *rtt_secure_config = NULL;
+
+    memset(params, 0, sizeof(wifi_rtt_config_v4));
 
     if (!rtt_from_file && !rtt_sta && !rtt_nan) {
         /* band filter for a specific band */
@@ -1574,98 +1615,127 @@ static void testRTT()
                 printMsg("failed to open the file : %s\n", rtt_aplist);
                 return;
             }
-            fprintf(w_fp, "|SSID|BSSID|Primary Freq|Center Freq|Channel BW(0=20MHZ,1=40MZ,2=80MHZ)\n"
-                    "is_6g|rtt_type(1=1WAY,2=2WAY,3=auto)|Peer Type(STA=0, AP=1)|burst period|\n"
-                    "Num of Burst|FTM retry count|FTMR retry count|LCI|LCR|\n"
-                    "Burst Duration|Preamble|BW||NTB Min Meas Time in units of 100us|\n"
-                    "NTB Max Meas Time in units of 10ms\n");
+            fprintf(w_fp, "|SSID|BSSID|Channel|Channel BW(0=20MHZ,1=40MZ,2=80MHZ)\n"
+                    "is_6g | rtt_type(1=1WAY,2=2WAY,3=auto)| Peer Type(STA=0, AP=1)|burst period|\n"
+                    "Num of Burst | num_frames_per_burst | num_retries_per_rtt_frame| num_retries_per_ftmr | LCI| LCR|\n"
+                    "Burst Duration|Preamble| NTB Min Meas Time in units of 100us|\n"
+                    "NTB Max Meas Time in units of 10ms\n | "
+                    "RTT_AKM | RTT_CIPHER_TYPE | Enabled_secure_LTF\n"
+                    "Enable_Ranging_Config | PASSPHRASE\n");
         }
 
         for (int i = 0; i < min(num_results, max_ap); i++) {
             scan_param = results[i];
+
             if(is11mcAP(&scan_param->ie_data[0], scan_param->ie_length)) {
-                memcpy(params[num_ap].rtt_config.addr, scan_param->bssid,
-                        sizeof(mac_addr));
-                mac_addr &addr = params[num_ap].rtt_config.addr;
+                rtt_config = &params[num_ap].rtt_config;
+                rtt_secure_config = &params[num_ap].rtt_secure_config;
+                rtt_config_v1 = &rtt_config->rtt_config;
+
+                if (!rtt_config || !rtt_secure_config || !rtt_config_v1) {
+                    printMsg("Failed to allocate while reading the file!");
+                    return;
+                }
+
+                memcpy(rtt_config_v1->addr, scan_param->bssid, sizeof(mac_addr));
+                mac_addr &addr = rtt_config_v1->addr;
                 printMsg("Adding %s(%02x:%02x:%02x:%02x:%02x:%02x) on Freq (%d) for %s type RTT\n",
                         scan_param->ssid, addr[0], addr[1],
                         addr[2], addr[3], addr[4], addr[5],
                         scan_param->channel, RttTypeToString(type));
-
-                if (type > RTT_TYPE_2_SIDED_11AZ_NTB) {
-                    printf("Unsupported rtt_type %d, exit!!\n", type);
-                    return;
-                }
-                params[num_ap].rtt_config.type = type;
-                params[num_ap].rtt_config.channel = get_channel_of_ie(&scan_param->ie_data[0],
-                        scan_param->ie_length);
-                params[num_ap].rtt_config.peer = RTT_PEER_AP;
-                params[num_ap].rtt_config.num_burst = default_rtt_param.num_burst;
-                params[num_ap].rtt_config.num_frames_per_burst =
+                rtt_config_v1->type = type;
+                rtt_config_v1->channel =
+                        get_channel_of_ie(&scan_param->ie_data[0], scan_param->ie_length);
+                rtt_config_v1->peer = RTT_PEER_AP;
+                rtt_config_v1->num_burst = default_rtt_param.num_burst;
+                rtt_config_v1->num_frames_per_burst =
                         default_rtt_param.num_frames_per_burst;
-                params[num_ap].rtt_config.num_retries_per_rtt_frame =
+                rtt_config_v1->num_retries_per_rtt_frame =
                         default_rtt_param.num_retries_per_ftm;
-                params[num_ap].rtt_config.num_retries_per_ftmr =
+                rtt_config_v1->num_retries_per_ftmr =
                         default_rtt_param.num_retries_per_ftmr;
-                params[num_ap].rtt_config.burst_period = default_rtt_param.burst_period;
-                params[num_ap].rtt_config.burst_duration = default_rtt_param.burst_duration;
-                params[num_ap].rtt_config.LCI_request = default_rtt_param.LCI_request;
-                params[num_ap].rtt_config.LCR_request = default_rtt_param.LCR_request;
-                params[num_ap].rtt_config.preamble = (wifi_rtt_preamble)default_rtt_param.preamble;
-                params[num_ap].rtt_config.bw = convert_channel_width_to_rtt_bw(channel_width);
-                if (params[num_ap].rtt_config.bw == WIFI_RTT_BW_5) {
+                rtt_config_v1->burst_period = default_rtt_param.burst_period;
+                rtt_config_v1->burst_duration = default_rtt_param.burst_duration;
+                rtt_config_v1->LCI_request = default_rtt_param.LCI_request;
+                rtt_config_v1->LCR_request = default_rtt_param.LCR_request;
+                rtt_config_v1->preamble = (wifi_rtt_preamble)default_rtt_param.preamble;
+                rtt_config_v1->bw = convert_channel_width_to_rtt_bw(channel_width);
+                if (rtt_config_v1->bw == WIFI_RTT_BW_5) {
                     printf("Unsupported rtt bw %x \n",
-                            params[num_ap].rtt_config.bw);
+                            rtt_config_v1->bw);
                     return;
                 }
-                if (params[num_ap].rtt_config.type == RTT_TYPE_2_SIDED_11AZ_NTB) {
-                    params[num_ap].rtt_config.num_frames_per_burst =
+
+                if ((rtt_config_v1->type == RTT_TYPE_2_SIDED_11AZ_NTB) ||
+                        (rtt_config_v1->type == RTT_TYPE_2_SIDED_11AZ_NTB_SECURE)) {
+                    rtt_config_v1->num_frames_per_burst =
                             default_rtt_param_v3.num_frames_per_burst;
-                    printf("num_frames_per_burst %d \n",
-                            params[num_ap].rtt_config.num_frames_per_burst);
-                    if (!ntb_min_meas_time) {
-                        params[num_ap].ntb_min_measurement_time =
+
+                    rtt_config->ntb_min_measurement_time = ntb_min_meas_time;
+                    rtt_config->ntb_max_measurement_time = ntb_max_meas_time;
+
+                    if (!rtt_config->ntb_min_measurement_time) {
+                        rtt_config->ntb_min_measurement_time =
                                 default_rtt_param_v3.ntb_min_measurement_time;
-                    } else {
-                        params[num_ap].ntb_min_measurement_time =
-                                ntb_min_meas_time;
                     }
-                    if (!ntb_max_meas_time) {
-                         params[num_ap].ntb_max_measurement_time =
-                                default_rtt_param_v3.ntb_max_measurement_time;
-                    } else {
-                        params[num_ap].ntb_max_measurement_time =
-                                ntb_max_meas_time;
-                    }
+
+                   if (!rtt_config->ntb_max_measurement_time) {
+                       rtt_config->ntb_max_measurement_time =
+                               default_rtt_param_v3.ntb_max_measurement_time;
+                   }
+
+                    printf("file: num_frames_per_burst %d, ntb_min %lld, ntb_max %lld\n",
+                            rtt_config_v1->num_frames_per_burst,
+                            rtt_config->ntb_min_measurement_time,
+                            rtt_config->ntb_max_measurement_time);
                 }
+
+                if (rtt_config_v1->type == RTT_TYPE_2_SIDED_11AZ_NTB_SECURE) {
+                        rtt_secure_config->pasn_config.base_akm = base_akm;
+                        rtt_secure_config->pasn_config.pairwise_cipher_suite = pairwise_cipher_suite;
+                        if (passphrase_len) {
+                            memcpy(rtt_secure_config->pasn_config.passphrase,
+                                    passphrase, passphrase_len);
+                            rtt_secure_config->pasn_config.passphrase_len = passphrase_len;
+                        }
+                        rtt_secure_config->enable_secure_he_ltf = enable_secure_he_ltf;
+                        rtt_secure_config->enable_ranging_frame_protection = enable_ranging_frame_protection;
+                }
+
                 if (rtt_to_file) {
                     fprintf(w_fp, "%s %02x:%02x:%02x:%02x:%02x:%02x"
                             " %d %d %d %d %d %d %d %d %d "
-                            "%d %d %d %d %d %d %lu %lu\n",
+                            "%d %d %d %d %d %d %lu %lu\n"
+                            "%d %d %s %d %d\n",
                             scan_param->ssid,
-                            params[num_ap].rtt_config.addr[0],
-                            params[num_ap].rtt_config.addr[1],
-                            params[num_ap].rtt_config.addr[2],
-                            params[num_ap].rtt_config.addr[3],
-                            params[num_ap].rtt_config.addr[4],
-                            params[num_ap].rtt_config.addr[5],
-                            params[num_ap].rtt_config.channel.center_freq,
-                            params[num_ap].rtt_config.channel.center_freq0,
-                            params[num_ap].rtt_config.channel.width,
-                            params[num_ap].rtt_config.type,
-                            params[num_ap].rtt_config.peer,
-                            params[num_ap].rtt_config.burst_period,
-                            params[num_ap].rtt_config.num_burst,
-                            params[num_ap].rtt_config.num_frames_per_burst,
-                            params[num_ap].rtt_config.num_retries_per_rtt_frame,
-                            params[num_ap].rtt_config.num_retries_per_ftmr,
-                            params[num_ap].rtt_config.LCI_request,
-                            params[num_ap].rtt_config.LCR_request,
-                            params[num_ap].rtt_config.burst_duration,
-                            params[num_ap].rtt_config.preamble,
-                            params[num_ap].rtt_config.bw,
-                            params[num_ap].ntb_min_measurement_time,
-                            params[num_ap].ntb_max_measurement_time);
+                            rtt_config_v1->addr[0],
+                            rtt_config_v1->addr[1],
+                            rtt_config_v1->addr[2],
+                            rtt_config_v1->addr[3],
+                            rtt_config_v1->addr[4],
+                            rtt_config_v1->addr[5],
+                            rtt_config_v1->channel.center_freq,
+                            rtt_config_v1->channel.center_freq0,
+                            rtt_config_v1->channel.width,
+                            rtt_config_v1->type,
+                            rtt_config_v1->peer,
+                            rtt_config_v1->burst_period,
+                            rtt_config_v1->num_burst,
+                            rtt_config_v1->num_frames_per_burst,
+                            rtt_config_v1->num_retries_per_rtt_frame,
+                            rtt_config_v1->num_retries_per_ftmr,
+                            rtt_config_v1->LCI_request,
+                            rtt_config_v1->LCR_request,
+                            rtt_config_v1->burst_duration,
+                            rtt_config_v1->preamble,
+                            rtt_config_v1->bw,
+                            rtt_config->ntb_min_measurement_time,
+                            rtt_config->ntb_max_measurement_time,
+                            rtt_secure_config->pasn_config.base_akm,
+                            rtt_secure_config->pasn_config.pairwise_cipher_suite,
+                            rtt_secure_config->pasn_config.passphrase,
+                            rtt_secure_config->enable_secure_he_ltf,
+                            rtt_secure_config->enable_ranging_frame_protection);
                 }
                 num_ap++;
             } else {
@@ -1683,63 +1753,89 @@ static void testRTT()
         printf(" Run initiator rtt sta/nan, rtt_sta = %d, rtt_nan = %d \n",
                 rtt_sta, rtt_nan);
         /* As we have only one target */
-        memcpy(params[num_sta].rtt_config.addr, responder_addr, sizeof(mac_addr));
-        params[num_sta].rtt_config.channel =
-                convert_channel(responder_channel, channel_width, is_6g);
-        printMsg("Adding(" MACSTR ") on Freq (%d) for %s RTT\n",
-                MAC2STR(responder_addr),
-                params[num_sta].rtt_config.channel.center_freq,
-                RttTypeToString(type));
-        if (type > RTT_TYPE_2_SIDED_11AZ_NTB) {
-             printf("Unsupported rtt_type %d, exit!!\n", type);
-             return;
+        rtt_config = &params[num_sta].rtt_config;
+        rtt_secure_config = &params[num_sta].rtt_secure_config;
+        if (!rtt_config || !rtt_secure_config) {
+                printMsg("Failed to allocate for single target ranging! rtt_sta = %d, rtt_nan = %d \n",
+                        rtt_sta, rtt_nan);
+                return;
         }
-        /*As we are doing STA-STA RTT */
-        params[num_sta].rtt_config.type = type;
-        if (rtt_nan) {
-            params[num_sta].rtt_config.peer = RTT_PEER_NAN;
-        } else if (rtt_sta) {
-            params[num_sta].rtt_config.peer = RTT_PEER_STA;
-        }
-        params[num_sta].rtt_config.num_burst = default_rtt_param.num_burst;
-        params[num_sta].rtt_config.num_frames_per_burst = default_rtt_param.num_frames_per_burst;
-        params[num_sta].rtt_config.num_retries_per_rtt_frame =
-            default_rtt_param.num_retries_per_ftm;
-        params[num_sta].rtt_config.num_retries_per_ftmr = default_rtt_param.num_retries_per_ftmr;
-        params[num_sta].rtt_config.burst_period = default_rtt_param.burst_period;
-        params[num_sta].rtt_config.burst_duration = default_rtt_param.burst_duration;
-        params[num_sta].rtt_config.LCI_request = default_rtt_param.LCI_request;
-        params[num_sta].rtt_config.LCR_request = default_rtt_param.LCR_request;
-        params[num_sta].rtt_config.preamble = (wifi_rtt_preamble)default_rtt_param.preamble;
-        params[num_sta].rtt_config.bw = convert_channel_width_to_rtt_bw(channel_width);
-        if (params[num_sta].rtt_config.bw == WIFI_RTT_BW_5) {
-            printf("Unsupported rtt bw %x \n",
-                    params[num_sta].rtt_config.bw);
+
+        rtt_config_v1 = &rtt_config->rtt_config;
+        if (!rtt_config_v1) {
+            printMsg("Failed to allocate rtt_config_v1 for single target ranging! rtt_sta = %d, rtt_nan = %d \n",
+                    rtt_sta, rtt_nan);
             return;
         }
 
-        if (params[num_sta].rtt_config.type == RTT_TYPE_2_SIDED_11AZ_NTB) {
-            params[num_sta].rtt_config.num_frames_per_burst =
-                    default_rtt_param_v3.num_frames_per_burst;
+        memcpy(rtt_config_v1->addr, responder_addr, sizeof(mac_addr));
+        rtt_config_v1->channel = convert_channel(responder_channel, channel_width, is_6g);
+        printMsg("Adding(" MACSTR ") on Freq (%d) for %s RTT\n",
+                MAC2STR(responder_addr), rtt_config_v1->channel.center_freq,
+                RttTypeToString(type));
+        /*As we are doing STA-STA RTT */
+        rtt_config_v1->type = type;
+        if (rtt_nan) {
+            rtt_config_v1->peer = RTT_PEER_NAN;
+        } else if (rtt_sta) {
+            rtt_config_v1->peer = RTT_PEER_STA;
+        }
+        rtt_config_v1->num_burst = default_rtt_param.num_burst;
+        rtt_config_v1->num_frames_per_burst = default_rtt_param.num_frames_per_burst;
+        rtt_config_v1->num_retries_per_rtt_frame = default_rtt_param.num_retries_per_ftm;
+        rtt_config_v1->num_retries_per_ftmr = default_rtt_param.num_retries_per_ftmr;
+        rtt_config_v1->burst_period = default_rtt_param.burst_period;
+        rtt_config_v1->burst_duration = default_rtt_param.burst_duration;
+        rtt_config_v1->LCI_request = default_rtt_param.LCI_request;
+        rtt_config_v1->LCR_request = default_rtt_param.LCR_request;
+        rtt_config_v1->preamble = (wifi_rtt_preamble)default_rtt_param.preamble;
+        rtt_config_v1->bw = convert_channel_width_to_rtt_bw(channel_width);
 
-            printf("num_frames_per_burst %d \n",
-                    params[num_sta].rtt_config.num_frames_per_burst);
-            if (!ntb_min_meas_time) {
-                params[num_sta].ntb_min_measurement_time =
-                        default_rtt_param_v3.ntb_min_measurement_time;
-                } else {
-                    params[num_sta].ntb_min_measurement_time =
-                            ntb_min_meas_time;
-                }
-                if (!ntb_max_meas_time) {
-                    params[num_sta].ntb_max_measurement_time =
-                            default_rtt_param_v3.ntb_max_measurement_time;
-                } else {
-                    params[num_sta].ntb_max_measurement_time =
-                            ntb_max_meas_time;
-                }
+        if (rtt_config_v1->bw == WIFI_RTT_BW_5) {
+            printf("Unsupported rtt bw %x \n",
+                    rtt_config_v1->bw);
+            return;
         }
 
+        if ((rtt_config_v1->type == RTT_TYPE_2_SIDED_11AZ_NTB) ||
+                (rtt_config_v1->type == RTT_TYPE_2_SIDED_11AZ_NTB_SECURE)) {
+            rtt_config_v1->num_frames_per_burst =
+                    default_rtt_param_v3.num_frames_per_burst;
+
+            rtt_config->ntb_min_measurement_time =
+                    ntb_min_meas_time;
+
+            rtt_config->ntb_max_measurement_time =
+                         ntb_max_meas_time;
+
+            if (!rtt_config->ntb_min_measurement_time) {
+                rtt_config->ntb_min_measurement_time =
+                    default_rtt_param_v3.ntb_min_measurement_time;
+            }
+
+            if (!rtt_config->ntb_max_measurement_time) {
+                rtt_config->ntb_max_measurement_time =
+                         default_rtt_param_v3.ntb_max_measurement_time;
+            }
+
+            printf("single target: type %d num_frames_per_burst %d, ntb_min %lld, ntb_max %lld\n",
+                    rtt_config_v1->type,
+                    rtt_config_v1->num_frames_per_burst,
+                    rtt_config->ntb_min_measurement_time,
+                    rtt_config->ntb_max_measurement_time);
+        }
+
+        if (rtt_config_v1->type == RTT_TYPE_2_SIDED_11AZ_NTB_SECURE) {
+            rtt_secure_config->pasn_config.base_akm = base_akm;
+            rtt_secure_config->pasn_config.pairwise_cipher_suite = pairwise_cipher_suite;
+            if (passphrase_len) {
+                memcpy(rtt_secure_config->pasn_config.passphrase,
+                        passphrase, passphrase_len);
+                rtt_secure_config->pasn_config.passphrase_len = passphrase_len;
+            }
+            rtt_secure_config->enable_secure_he_ltf = enable_secure_he_ltf;
+            rtt_secure_config->enable_ranging_frame_protection = enable_ranging_frame_protection;
+        }
         num_sta++;
 
     } else {
@@ -1747,9 +1843,11 @@ static void testRTT()
         FILE* fp;
         char bssid[ETHER_ADDR_STR_LEN];
         char ssid[MAX_SSID_LEN];
+        char passphrase[RTT_SECURITY_MAX_PASSPHRASE_LEN];
         char first_char;
         memset(bssid, 0, sizeof(bssid));
         memset(ssid, 0, sizeof(ssid));
+        memset(passphrase, 0, sizeof(passphrase));
         memset(params, 0, sizeof(params));
 
         /* Read a RTT AP list from a file */
@@ -1760,10 +1858,13 @@ static void testRTT()
                     "  by following order in file, such as:\n"
                     "SSID | BSSID | chan_num | Channel BW(0=20MHZ,1=40MZ,2=80MHZ)| is_6g |"
                     " RTT_Type(1=1WAY,2=2WAY,3=auto) |Peer Type(STA=0, AP=1)| Burst Period|"
-                    " No of Burst| No of FTM Burst| FTM Retry Count| FTMR Retry Count| LCI| LCR|"
-                    " Burst Duration| Preamble|Channel_Bandwith|"
-                    " NTB Min Meas Time in units of 100us|\n",
-                    " NTB Max Meas Time in units of 10ms\n",
+                    " No of Burst| num_frames_per_burst | num_retries_per_rtt_frame|"
+                    " num_retries_per_ftmr | LCI| LCR|"
+                    " Burst Duration| Preamble |"
+                    " NTB Min Meas Time in units of 100us|"
+                    " NTB Max Meas Time in units of 10ms |"
+                    " RTT_AKM | CIPHER_TYPE |"
+                    " enable_secure_he_ltf | enable_ranging_frame_protection | PASSPHRASE\n",
                     rtt_aplist, DEFAULT_RTT_FILE);
             return;
         }
@@ -1776,61 +1877,102 @@ static void testRTT()
                     break;
                 }
 
-                result = fscanf(fp,"%s %s %u %u %u %u\n",
+                rtt_config = &params[i].rtt_config;
+                rtt_secure_config = &params[i].rtt_secure_config;
+                if (!rtt_config || !rtt_secure_config) {
+                    printMsg("Failed to allocate for multi target ranging!\n");
+                    return;
+                }
+
+                rtt_config_v1 = &rtt_config->rtt_config;
+                if (!rtt_config_v1) {
+                    printMsg("rtt_config_v1 is null\n");
+                    break;
+                }
+
+                result = fscanf(fp,"%s %s %d %d %d %d\n",
                         ssid, bssid, (unsigned int*)&responder_channel,
                         (unsigned int*)&channel_width,
                         (unsigned int*)&is_6g,
-                        (unsigned int*)&params[i].rtt_config.type);
+                        (unsigned int*)&rtt_config_v1->type);
                 if (result != 6) {
-                    printMsg("fscanf failed to read ssid, bssid, channel, width, is_6g, type. err: %d\n", result);
+                    printMsg("fscanf failed to read ssid, bssid, "
+                            "channel, width, is_6g, type. err: %d\n", result);
                     break;
                 }
 
-                if (params[i].rtt_config.type > RTT_TYPE_2_SIDED_11AZ_NTB) {
-                    printf("Unsupported rtt_type %d, exit!!\n", type);
-                    break;
-                }
-
-                result = fscanf(fp, "%u %u %u %u %u %u %hhu %hhu %u %hhu\n",
-                        (unsigned int*)&params[i].rtt_config.peer,
-                        &params[i].rtt_config.burst_period,
-                        &params[i].rtt_config.num_burst,
-                        &params[i].rtt_config.num_frames_per_burst,
-                        (unsigned int*)&params[i].rtt_config.num_retries_per_rtt_frame,
-                        (unsigned int*)&params[i].rtt_config.num_retries_per_ftmr,
-                        (unsigned char*)&params[i].rtt_config.LCI_request,
-                        (unsigned char*)&params[i].rtt_config.LCR_request,
-                        (unsigned int*)&params[i].rtt_config.burst_duration,
-                        (unsigned char*)&params[i].rtt_config.preamble);
+                result = fscanf(fp, "%d %d %d %d %d %d %hhu %hhu %d %hhu\n",
+                        (unsigned int*)&rtt_config_v1->peer,
+                        (unsigned int*)&rtt_config_v1->burst_period,
+                        (unsigned int*)&rtt_config_v1->num_burst,
+                        (unsigned int*)&rtt_config_v1->num_frames_per_burst,
+                        (unsigned int*)&rtt_config_v1->num_retries_per_rtt_frame,
+                        (unsigned int*)&rtt_config_v1->num_retries_per_ftmr,
+                        (unsigned char*)&rtt_config_v1->LCI_request,
+                        (unsigned char*)&rtt_config_v1->LCR_request,
+                        (unsigned int*)&rtt_config_v1->burst_duration,
+                        (unsigned char*)&rtt_config_v1->preamble);
                 if (result != 10) {
                     printMsg("fscanf failed to read mc params %d\n", result);
                     break;
                 }
-                params[i].rtt_config.bw = convert_channel_width_to_rtt_bw(channel_width);
-                if (params[i].rtt_config.bw == WIFI_RTT_BW_5) {
-                    printf("Unsupported rtt bw %x \n", params[i].rtt_config.bw);
+
+                rtt_config_v1->bw = convert_channel_width_to_rtt_bw(channel_width);
+                if (rtt_config_v1->bw == WIFI_RTT_BW_5) {
+                    printf("Unsupported rtt bw %x \n", rtt_config_v1->bw);
                     break;
                 }
 
-                if (params[i].rtt_config.type == RTT_TYPE_2_SIDED_11AZ_NTB) {
-                    result = fscanf(fp, "%14lu %14lu\n",
-                            &params[i].ntb_min_measurement_time,
-                            &params[i].ntb_max_measurement_time);
+                if ((rtt_config_v1->type == RTT_TYPE_2_SIDED_11AZ_NTB) ||
+                        (rtt_config_v1->type == RTT_TYPE_2_SIDED_11AZ_NTB_SECURE)) {
+                    result = fscanf(fp, "%lld %lld\n",
+                            (unsigned long int*)&rtt_config->ntb_min_measurement_time,
+                            (unsigned long int*)&rtt_config->ntb_max_measurement_time);
                     if (result != 2) {
-                        printMsg("fscanf failed to read az params %d\n", result);
+                        printMsg("fscanf failed to read ntb min and max params %d\n", result);
+                        break;
+                    }
+                    printMsg("ap-list: ntb_min_measurement_time: %lld\n"
+                                " ntb_max_measurement_time: %lld\n",
+                                rtt_config->ntb_min_measurement_time,
+                                rtt_config->ntb_max_measurement_time);
+                }
+
+                if (rtt_config_v1->type == RTT_TYPE_2_SIDED_11AZ_NTB_SECURE) {
+                    result = fscanf(fp, "%u %u %u %u %s\n",
+                            (unsigned int*)&rtt_secure_config->pasn_config.base_akm,
+                            (unsigned int*)&rtt_secure_config->pasn_config.pairwise_cipher_suite,
+                            (unsigned int*)&rtt_secure_config->enable_secure_he_ltf,
+                            (unsigned int*)&rtt_secure_config->enable_ranging_frame_protection,
+                            passphrase);
+                    if (result != 5) {
+                        printMsg("fscanf failed to read secure az params %d\n", result);
                         break;
                     }
                 }
 
-                params[i].rtt_config.channel = convert_channel(responder_channel,
-                        channel_width, is_6g);
-                parseMacAddress(bssid, params[i].rtt_config.addr);
+                if (rtt_config_v1->type == RTT_TYPE_2_SIDED_11AZ_NTB_SECURE) {
+                    if (strlen(passphrase) > RTT_SECURITY_MAX_PASSPHRASE_LEN) {
+                        printMsg("Invalid passphrase\n");
+                        break;
+                    } else {
+                        rtt_secure_config->pasn_config.passphrase_len =
+                                min(strlen(passphrase), (RTT_SECURITY_MAX_PASSPHRASE_LEN - 1));
 
-                printMsg("Target: [%d]: ssid: %-16s\n"
+                        memcpy(rtt_secure_config->pasn_config.passphrase,
+                                passphrase, rtt_secure_config->pasn_config.passphrase_len);
+                    }
+                }
+
+                rtt_config_v1->channel = convert_channel(responder_channel,
+                        channel_width, is_6g);
+                parseMacAddress(bssid, rtt_config_v1->addr);
+
+                printMsg("ap-list: Target: [%d]: ssid: %-16s\n"
                         " BSSID:%-20s\n"
                         " center freq: %-8u\n"
                         " center freq0:%-14u\n"
-                        " channel_width: %-12d\n"
+                        " width: %-12d\n"
                         " Type:%-15s\n"
                         " peer:%-10u\n"
                         " burst_period:%-16u\n"
@@ -1842,28 +1984,36 @@ static void testRTT()
                         " LCR_request: %-15u\n"
                         " burst_duration: %-10hhu\n"
                         " preamble:%-10hhu\n"
-                        " bw:%-10hhu\n"
-                        " ntb_min_measurement_time: %-14lu\n"
-                        " ntb_max_measurement_time: %-14lu\n",
-                        i+1, ssid, bssid,
-                        params[i].rtt_config.channel.center_freq,
-                        params[i].rtt_config.channel.center_freq0,
-                        params[i].rtt_config.channel.width,
-                        RttTypeToString(params[i].rtt_config.type),
-                        params[i].rtt_config.peer,
-                        params[i].rtt_config.burst_period,
-                        params[i].rtt_config.num_burst,
-                        params[i].rtt_config.num_frames_per_burst,
-                        params[i].rtt_config.num_retries_per_rtt_frame,
-                        params[i].rtt_config.num_retries_per_ftmr,
-                        params[i].rtt_config.LCI_request,
-                        params[i].rtt_config.LCR_request,
-                        params[i].rtt_config.burst_duration,
-                        params[i].rtt_config.preamble,
-                        params[i].rtt_config.bw,
-                        params[i].ntb_min_measurement_time,
-                        params[i].ntb_max_measurement_time);
+                        " bw:%-10hhu\n",
+		        i+1, ssid, bssid,
+                        rtt_config_v1->channel.center_freq,
+                        rtt_config_v1->channel.center_freq0,
+                        rtt_config_v1->channel.width,
+                        RttTypeToString(rtt_config_v1->type),
+                        rtt_config_v1->peer,
+                        rtt_config_v1->burst_period,
+                        rtt_config_v1->num_burst,
+                        rtt_config_v1->num_frames_per_burst,
+                        rtt_config_v1->num_retries_per_rtt_frame,
+                        rtt_config_v1->num_retries_per_ftmr,
+                        rtt_config_v1->LCI_request,
+                        rtt_config_v1->LCR_request,
+                        rtt_config_v1->burst_duration,
+                        rtt_config_v1->preamble,
+                        rtt_config_v1->bw);
 
+                if (rtt_config_v1->type == RTT_TYPE_2_SIDED_11AZ_NTB_SECURE) {
+                    printMsg("ap-list: base_akm: %-10u\n"
+                            " pairwise_cipher_suite: %-10u\n"
+                            " Passphrase:%-32s\n"
+                            " enable_secure_he_ltf: %-10u\n"
+                            " enable_ranging_frame_protection: %-10u\n",
+                            rtt_secure_config->pasn_config.base_akm,
+                            rtt_secure_config->pasn_config.pairwise_cipher_suite,
+                            rtt_secure_config->pasn_config.passphrase,
+                            rtt_secure_config->enable_secure_he_ltf,
+                            rtt_secure_config->enable_ranging_frame_protection);
+                }
                 i++;
             } else {
                 /* Ignore the rest of the line. */
@@ -1885,19 +2035,19 @@ static void testRTT()
         fp = NULL;
     }
 
-    wifi_rtt_event_handler_v3 handler;
+    wifi_rtt_event_handler_v4 handler;
     memset(&handler, 0, sizeof(handler));
-    handler.on_rtt_results_v3 = &onRTTResultsV3;
+    handler.on_rtt_results_v4 = &onRTTResultsV4;
 
-    if (!rtt_to_file || rtt_sta || rtt_nan)  {
+    if (!rtt_to_file || rtt_sta || rtt_nan) {
         if (num_ap || num_sta) {
             if (num_ap) {
                 printMsg("Configuring RTT for %d APs\n", num_ap);
-                result = hal_fn.wifi_rtt_range_request_v3(rttCmdId, wlan0Handle,
+                result = hal_fn.wifi_rtt_range_request_v4(rttCmdId, wlan0Handle,
                         num_ap, params, handler);
             } else if (num_sta) {
                 printMsg("Configuring RTT for %d sta \n", num_sta);
-                result = hal_fn.wifi_rtt_range_request_v3(rttCmdId, wlan0Handle,
+                result = hal_fn.wifi_rtt_range_request_v4(rttCmdId, wlan0Handle,
                         num_sta, params, handler);
             }
 
@@ -1936,48 +2086,89 @@ static int cancelRTT()
 static void getRTTCapability()
 {
     int ret;
-    wifi_rtt_capabilities_v3 rtt_capability;
-    ret = hal_fn.wifi_get_rtt_capabilities_v3(wlan0Handle, &rtt_capability);
+    wifi_rtt_capabilities_v4 rtt_capability_v4;
+    wifi_rtt_capabilities_v3 *rtt_capab_v3 = NULL;
+    wifi_rtt_capabilities *rtt_capab = NULL;
+
+    ret = hal_fn.wifi_get_rtt_capabilities_v4(wlan0Handle, &rtt_capability_v4);
     if (ret == WIFI_SUCCESS) {
+        rtt_capab_v3 = &rtt_capability_v4.rtt_capab_v3;
+        rtt_capab = &rtt_capab_v3->rtt_capab;
+
         printMsg("Supported Capabilites of RTT :\n");
-        if (rtt_capability.rtt_capab.rtt_one_sided_supported)
-            printMsg("One side RTT is supported\n");
-        if (rtt_capability.rtt_capab.rtt_ftm_supported)
-            printMsg("FTM(11mc) RTT is supported\n");
-        if (rtt_capability.rtt_capab.lci_support)
-            printMsg("LCI is supported\n");
-        if (rtt_capability.rtt_capab.lcr_support)
-            printMsg("LCR is supported\n");
-        if (rtt_capability.rtt_capab.bw_support) {
+        if (rtt_capab->rtt_one_sided_supported)
+            printMsg("One side RTT is supported.\n");
+        if (rtt_capab->rtt_ftm_supported)
+            printMsg("FTM(11mc) RTT is supported.\n");
+        if (rtt_capab->lci_support)
+            printMsg("LCI is supported.\n");
+        if (rtt_capab->lcr_support)
+            printMsg("LCR is supported.\n");
+        if (rtt_capab->bw_support) {
             printMsg("BW(%s %s %s %s) are supported\n",
-                    (rtt_capability.rtt_capab.bw_support & BW_20_SUPPORT) ? "20MHZ" : "",
-                    (rtt_capability.rtt_capab.bw_support & BW_40_SUPPORT) ? "40MHZ" : "",
-                    (rtt_capability.rtt_capab.bw_support & BW_80_SUPPORT) ? "80MHZ" : "",
-                    (rtt_capability.rtt_capab.bw_support & BW_160_SUPPORT) ? "160MHZ" : "");
+                    (rtt_capab->bw_support & BW_20_SUPPORT) ? "20MHZ" : "",
+                    (rtt_capab->bw_support & BW_40_SUPPORT) ? "40MHZ" : "",
+                    (rtt_capab->bw_support & BW_80_SUPPORT) ? "80MHZ" : "",
+                    (rtt_capab->bw_support & BW_160_SUPPORT) ? "160MHZ" : "");
         }
-        if (rtt_capability.rtt_capab.preamble_support) {
+        if (rtt_capab->preamble_support) {
             printMsg("Preamble(%s %s %s) are supported\n",
-                    (rtt_capability.rtt_capab.preamble_support & PREAMBLE_LEGACY) ? "Legacy" : "",
-                    (rtt_capability.rtt_capab.preamble_support & PREAMBLE_HT) ? "HT" : "",
-                    (rtt_capability.rtt_capab.preamble_support & PREAMBLE_VHT) ? "VHT" : "");
+                    (rtt_capab->preamble_support & PREAMBLE_LEGACY) ? "Legacy" : "",
+                    (rtt_capab->preamble_support & PREAMBLE_HT) ? "HT" : "",
+                    (rtt_capab->preamble_support & PREAMBLE_VHT) ? "VHT" : "");
 
         }
 
-        if (rtt_capability.az_preamble_support) {
-            printMsg("AZ preamble is supported\n");
+        if (rtt_capab_v3->az_preamble_support) {
+            printMsg("AZ preamble is supported!!\n");
         }
 
-        if (rtt_capability.az_bw_support) {
-            printMsg("AZ bw is supported\n");
+        if (rtt_capab_v3->az_bw_support) {
+            printMsg("AZ BW(%s %s %s %s) are supported:\n",
+                    (rtt_capab_v3->az_bw_support & BW_20_SUPPORT) ? "20MHZ" : "",
+                    (rtt_capab_v3->az_bw_support & BW_40_SUPPORT) ? "40MHZ" : "",
+                    (rtt_capab_v3->az_bw_support & BW_80_SUPPORT) ? "80MHZ" : "",
+                    (rtt_capab_v3->az_bw_support & BW_160_SUPPORT) ? "160MHZ" : "");
         }
 
-        if (rtt_capability.ntb_initiator_supported) {
+        if (rtt_capab_v3->ntb_initiator_supported) {
             printMsg("NTB initiator is supported\n");
         }
 
-        if (rtt_capability.ntb_responder_supported) {
+        if (rtt_capab_v3->ntb_responder_supported) {
             printMsg("NTB responder is supported\n");
         }
+
+        if (rtt_capability_v4.secure_he_ltf_supported) {
+            printMsg("secure_he_ltf_supported is supported\n");
+        }
+
+        if (rtt_capability_v4.ranging_fame_protection_supported) {
+            printMsg("protected range neg meas is supported\n");
+        }
+
+        if (rtt_capability_v4.supported_akms) {
+            printMsg("Supported AKM TYPES: (%s %s %s %s %s %s %s %s %s)\n",
+                    (!rtt_capability_v4.supported_akms) ? "WPA_KEY_MGMT_NONE," : "",
+                    (rtt_capability_v4.supported_akms & WPA_KEY_MGMT_PASN) ? "WPA_KEY_MGMT_PASN," : "",
+                    (rtt_capability_v4.supported_akms & WPA_KEY_MGMT_SAE) ? "WPA_KEY_MGMT_SAE," : "",
+                    (rtt_capability_v4.supported_akms & WPA_KEY_MGMT_EAP_FT_SHA256) ? "WPA_KEY_MGMT_EAP_FT_SHA256," : "",
+                    (rtt_capability_v4.supported_akms & WPA_KEY_MGMT_FT_PSK_SHA256) ? "WPA_KEY_MGMT_FT_PSK_SHA256," : "",
+                    (rtt_capability_v4.supported_akms & WPA_KEY_MGMT_EAP_FT_SHA384) ? "WPA_KEY_MGMT_EAP_FT_SHA384," : "",
+                    (rtt_capability_v4.supported_akms & WPA_KEY_MGMT_FT_PSK_SHA384) ? "WPA_KEY_MGMT_FT_PSK_SHA384," : "",
+                    (rtt_capability_v4.supported_akms & WPA_KEY_MGMT_EAP_FILS_SHA256) ? "WPA_KEY_MGMT_EAP_FILS_SHA256," : "",
+                    (rtt_capability_v4.supported_akms & WPA_KEY_MGMT_EAP_FILS_SHA384) ? "WPA_KEY_MGMT_EAP_FILS_SHA384," : "");
+        }
+
+        if (rtt_capability_v4.supported_cipher_suites) {
+            printMsg("Supported CIPHER TYPE SUITES: (%s %s %s %s %s)\n",
+                    (!rtt_capability_v4.supported_cipher_suites) ? "WPA_CIPHER_NONE," : "",
+                    (rtt_capability_v4.supported_cipher_suites & WPA_CIPHER_CCMP_128) ? "WPA_CIPHER_CCMP_128," : "",
+                    (rtt_capability_v4.supported_cipher_suites & WPA_CIPHER_CCMP_256) ? "WPA_CIPHER_CCMP_256," : "",
+                    (rtt_capability_v4.supported_cipher_suites & WPA_CIPHER_GCMP_128) ? "WPA_CIPHER_GCMP_128," : "",
+                    (rtt_capability_v4.supported_cipher_suites & WPA_CIPHER_GCMP_256) ? "WPA_CIPHER_GCMP_256" : "");
+        }
+
     } else {
         printMsg("Could not get the rtt capabilities : %d\n", ret);
     }
@@ -4069,6 +4260,70 @@ void readRTTOptions(int argc, char *argv[]) {
                     ntb_max_meas_time = atoi(argv[j]);
                 }
             }
+
+            /* Read akm */
+            if ((argv[j+1]) && (type == RTT_TYPE_2_SIDED_11AZ_NTB_SECURE)) {
+                if (isdigit(argv[j+1][0])) {
+                    j++;
+                    base_akm = (wifi_rtt_akm)atoi(argv[j]);
+                    printf("base_akm : %d\n", base_akm);
+                    printMsg("AKM TYPES: (%s %s %s %s %s %s %s %s %s)\n",
+                            (!base_akm) ? "WPA_KEY_MGMT_NONE," : "",
+                            (base_akm & WPA_KEY_MGMT_PASN) ? "WPA_KEY_MGMT_PASN," : "",
+                            (base_akm & WPA_KEY_MGMT_SAE) ? "WPA_KEY_MGMT_SAE," : "",
+                            (base_akm & WPA_KEY_MGMT_EAP_FT_SHA256) ? "WPA_KEY_MGMT_EAP_FT_SHA256," : "",
+                            (base_akm & WPA_KEY_MGMT_FT_PSK_SHA256) ? "WPA_KEY_MGMT_FT_PSK_SHA256," : "",
+                            (base_akm & WPA_KEY_MGMT_EAP_FT_SHA384) ? "WPA_KEY_MGMT_EAP_FT_SHA384," : "",
+                            (base_akm & WPA_KEY_MGMT_FT_PSK_SHA384) ? "WPA_KEY_MGMT_FT_PSK_SHA384," : "",
+                            (base_akm & WPA_KEY_MGMT_EAP_FILS_SHA256) ? "WPA_KEY_MGMT_EAP_FILS_SHA256," : "",
+                            (base_akm & WPA_KEY_MGMT_EAP_FILS_SHA384) ? "WPA_KEY_MGMT_EAP_FILS_SHA384," : "");
+                }
+            }
+
+            if ((argv[j+1]) && (type == RTT_TYPE_2_SIDED_11AZ_NTB_SECURE)) {
+                /* Read cipher type */
+                if (isdigit(argv[j+1][0])) {
+                    j++;
+                    pairwise_cipher_suite = (wifi_rtt_cipher_suite)atoi(argv[j]);
+                    printf("pairwise_cipher_suite : %d\n", pairwise_cipher_suite);
+                    printMsg("PAIRWISE CIPHER TYPE SUITES: (%s %s %s %s %s)\n",
+                            (!pairwise_cipher_suite) ? "WPA_CIPHER_NONE," : "",
+                            (pairwise_cipher_suite & WPA_CIPHER_CCMP_128) ? "WPA_CIPHER_CCMP_128," : "",
+                            (pairwise_cipher_suite & WPA_CIPHER_CCMP_256) ? "WPA_CIPHER_CCMP_256," : "",
+                            (pairwise_cipher_suite & WPA_CIPHER_GCMP_128) ? "WPA_CIPHER_GCMP_128," : "",
+                            (pairwise_cipher_suite & WPA_CIPHER_GCMP_256) ? "WPA_CIPHER_GCMP_256" : "");
+                }
+            }
+
+            if ((argv[j+1]) && (type == RTT_TYPE_2_SIDED_11AZ_NTB_SECURE)) {
+                /* Read enable_secure_he_ltf */
+                if (isdigit(argv[j+1][0])) {
+                    j++;
+                    enable_secure_he_ltf = atoi(argv[j]);
+                    printf("enable_secure_he_ltf : %d\n", enable_secure_he_ltf);
+                }
+            }
+
+            if ((argv[j+1]) && (type == RTT_TYPE_2_SIDED_11AZ_NTB_SECURE)) {
+                /* Read enable_ranging_frame_protection */
+                if (isdigit(argv[j+1][0])) {
+                    j++;
+                    enable_ranging_frame_protection = atoi(argv[j]);
+                    printf("enable_ranging_frame_protection : %d\n", enable_ranging_frame_protection);
+                }
+            }
+
+            if ((argv[j+1]) && (type == RTT_TYPE_2_SIDED_11AZ_NTB_SECURE)) {
+                /* Read passphrase */
+                j++;
+                val_p = argv[j];
+                passphrase_len = strlen(val_p);
+                ret = set_interface_params(passphrase, val_p, passphrase_len);
+                if (ret != WIFI_SUCCESS) {
+                    printMsg("Failed to configure passphrase\n");
+                    return;
+                }
+            }
         }
     }
 }
@@ -5987,7 +6242,9 @@ void printUsage() {
     printf(" -cancel_resp     cancel the responder\n");
     printf(" -get_responder_info    return the responder info\n");
     printf(" -rtt -sta/-nan <peer mac addr> <channel> <bandwidth>"
-            " <is_6g> <rtt_type> <ntb_min_meas_time> <ntb_max_meas_time>\n");
+            " <is_6g> <rtt_type> <ntb_min_meas_time> <ntb_max_meas_time>"
+            " <akm> <pairwise_cipher_suite> <enable_secure_he_ltf> <enable_ranging_frame_protection>"
+            " <passphrase>\n");
     printf(" -get_capa_rtt Get the capability of RTT such as 11mc");
     printf(" -scan_mac_oui XY:AB:CD\n");
     printf(" -nodfs <0|1>     Turn OFF/ON non-DFS locales\n");
