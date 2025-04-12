@@ -1846,6 +1846,7 @@ wifi_error wifi_clear_iface_hal_info(wifi_handle handle, const char* ifname)
         if ((info->interfaces[i] != NULL) &&
             strncmp(info->interfaces[i]->name, ifname,
             sizeof(info->interfaces[i]->name)) == 0) {
+            memset(info->interfaces[i], 0, sizeof(info->interfaces[i]));
             free(info->interfaces[i]);
             info->interfaces[i] = NULL;
             info->num_interfaces--;

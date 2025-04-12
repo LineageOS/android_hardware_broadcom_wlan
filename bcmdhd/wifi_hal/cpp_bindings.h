@@ -332,7 +332,10 @@ protected:
     }
 
     int ifaceId() {
-        return mIfaceInfo->id;
+        if (mIfaceInfo) {
+            return mIfaceInfo->id;
+        }
+        return NL_SKIP;
     }
 
     /* Override this method to parse reply and dig out data; save it in the object */
