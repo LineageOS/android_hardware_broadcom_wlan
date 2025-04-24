@@ -677,6 +677,7 @@ class NanPairingPrimitive : public WifiCommand
 
     int createRequest(WifiRequest& request)
     {
+        ALOGI("NAN CMD: %s\n", NanCmdToString(mType));
         if (mType == NAN_PAIRING_REQUEST) {
             return createPairingRequest(request, (NanPairingRequest *)mParams);
         } else if (mType == NAN_PAIRING_IND_RESPONSE) {
@@ -1316,7 +1317,7 @@ class NanPairingPrimitive : public WifiCommand
             return NL_SKIP;
         }
         rsp_vndr_data = (nan_hal_resp_t *)reply.get_vendor_data();
-        ALOGI("NanDiscEnginePrmitive::handle response\n");
+        ALOGI("NanPairingPrmitive::handle response\n");
         memset(&rsp_data, 0, sizeof(NanResponseMsg));
         rsp_data.response_type = get_response_type((WIFI_SUB_COMMAND)rsp_vndr_data->subcmd);
         if (!valid_pairing_response_type(rsp_data.response_type))
@@ -2094,36 +2095,41 @@ class NanDiscEnginePrimitive : public WifiCommand
                 }
             }
 
-            result = request.put_u32(NAN_ATTRIBUTE_ENAB_PAIRING_SETUP,
-                    mParams->nan_pairing_config.enable_pairing_setup);
-            if (result < 0) {
-                ALOGE("%s: Failed to fill NAN_ATTRIBUTE_ENAB_PAIRING_SETUP, result = %d\n",
-                        __func__, result);
-                return result;
+            if (mParams->nan_pairing_config.enable_pairing_setup) {
+                result = request.put_u32(NAN_ATTRIBUTE_ENAB_PAIRING_SETUP,
+                        mParams->nan_pairing_config.enable_pairing_setup);
+                if (result < 0) {
+                    ALOGE("%s: Failed to fill NAN_ATTRIBUTE_ENAB_PAIRING_SETUP, result = %d\n", __func__, result);
+                    return result;
+                }
             }
 
-            result = request.put_u32(NAN_ATTRIBUTE_ENAB_PAIRING_VERIFICATION,
-                    mParams->nan_pairing_config.enable_pairing_verification);
-            if (result < 0) {
-                ALOGE("%s: Failed to fill NAN_ATTRIBUTE_ENAB_PAIRING_VERIFICATION, result = %d\n",
-                        __func__, result);
-                return result;
+            if (mParams->nan_pairing_config.enable_pairing_verification) {
+                result = request.put_u32(NAN_ATTRIBUTE_ENAB_PAIRING_VERIFICATION,
+                        mParams->nan_pairing_config.enable_pairing_verification);
+                if (result < 0) {
+                    ALOGE("%s: Failed to fill NAN_ATTRIBUTE_ENAB_PAIRING_VERIFICATION,"
+                            "result = %d\n", __func__, result);
+                    return result;
+                }
             }
 
-            result = request.put_u32(NAN_ATTRIBUTE_PAIRING_CACHE,
-                    mParams->nan_pairing_config.enable_pairing_cache);
-            if (result < 0) {
-                ALOGE("%s: Failed to fill NAN_ATTRIBUTE_PAIRING_CACHE, result = %d\n",
-                        __func__, result);
-                return result;
+            if (mParams->nan_pairing_config.enable_pairing_cache) {
+                result = request.put_u32(NAN_ATTRIBUTE_PAIRING_CACHE,
+                        mParams->nan_pairing_config.enable_pairing_cache);
+                if (result < 0) {
+                    ALOGE("%s: Failed to fill NAN_ATTRIBUTE_PAIRING_CACHE, result = %d\n", __func__, result);
+                    return result;
+                }
             }
 
-            result = request.put_u16(NAN_ATTRIBUTE_BS_METHODS,
+            if (mParams->nan_pairing_config.supported_bootstrapping_methods) {
+                result = request.put_u16(NAN_ATTRIBUTE_BS_METHODS,
                     mParams->nan_pairing_config.supported_bootstrapping_methods);
-            if (result < 0) {
-                ALOGE("%s: Failed to fill NAN_ATTRIBUTE_BS_METHODS, result = %d\n",
-                        __func__, result);
-                return result;
+                if (result < 0) {
+                    ALOGE("%s: Failed to fill NAN_ATTRIBUTE_BS_METHODS, result = %d\n", __func__, result);
+                    return result;
+                }
             }
         }
 
@@ -2551,36 +2557,40 @@ class NanDiscEnginePrimitive : public WifiCommand
                 }
             }
 
-            result = request.put_u32(NAN_ATTRIBUTE_ENAB_PAIRING_SETUP,
-                    mParams->nan_pairing_config.enable_pairing_setup);
-            if (result < 0) {
-                ALOGE("%s: Failed to fill NAN_ATTRIBUTE_ENAB_PAIRING_SETUP, result = %d\n",
-                        __func__, result);
-                return result;
+            if (mParams->nan_pairing_config.enable_pairing_setup) {
+                result = request.put_u32(NAN_ATTRIBUTE_ENAB_PAIRING_SETUP,
+                        mParams->nan_pairing_config.enable_pairing_setup);
+                if (result < 0) {
+                    ALOGE("%s: Failed to fill NAN_ATTRIBUTE_ENAB_PAIRING_SETUP, result = %d\n", __func__, result);
+                    return result;
+                }
             }
 
-            result = request.put_u32(NAN_ATTRIBUTE_ENAB_PAIRING_VERIFICATION,
-                    mParams->nan_pairing_config.enable_pairing_verification);
-            if (result < 0) {
-                ALOGE("%s: Failed to fill NAN_ATTRIBUTE_ENAB_PAIRING_VERIFICATION, result = %d\n",
-                        __func__, result);
-                return result;
+            if (mParams->nan_pairing_config.enable_pairing_verification) {
+                result = request.put_u32(NAN_ATTRIBUTE_ENAB_PAIRING_VERIFICATION,
+                        mParams->nan_pairing_config.enable_pairing_verification);
+                if (result < 0) {
+                    ALOGE("%s: Failed to fill NAN_ATTRIBUTE_ENAB_PAIRING_VERIFICATION, result = %d\n", __func__, result);
+                    return result;
+                }
             }
 
-            result = request.put_u32(NAN_ATTRIBUTE_PAIRING_CACHE,
-                    mParams->nan_pairing_config.enable_pairing_cache);
-            if (result < 0) {
-                ALOGE("%s: Failed to fill NAN_ATTRIBUTE_PAIRING_CACHE, result = %d\n",
-                        __func__, result);
-                return result;
+            if (mParams->nan_pairing_config.enable_pairing_cache) {
+                result = request.put_u32(NAN_ATTRIBUTE_PAIRING_CACHE,
+                        mParams->nan_pairing_config.enable_pairing_cache);
+                if (result < 0) {
+                    ALOGE("%s: Failed to fill NAN_ATTRIBUTE_PAIRING_CACHE, result = %d\n", __func__, result);
+                    return result;
+                }
             }
 
-            result = request.put_u16(NAN_ATTRIBUTE_BS_METHODS,
-                    mParams->nan_pairing_config.supported_bootstrapping_methods);
-            if (result < 0) {
-                ALOGE("%s: Failed to fill NAN_ATTRIBUTE_BS_METHODS, result = %d\n",
-                        __func__, result);
-                return result;
+            if (mParams->nan_pairing_config.supported_bootstrapping_methods) {
+                result = request.put_u16(NAN_ATTRIBUTE_BS_METHODS,
+                        mParams->nan_pairing_config.supported_bootstrapping_methods);
+                if (result < 0) {
+                    ALOGE("%s: Failed to fill NAN_ATTRIBUTE_BS_METHODS, result = %d\n", __func__, result);
+                    return result;
+                }
             }
         }
 
@@ -2851,11 +2861,6 @@ class NanDiscEnginePrimitive : public WifiCommand
                 SET_NAN_PAIRING_CAP(h_info, dest->is_pairing_supported);
                 ALOGI("Capabilities Cached pairing %d suspend %d\n", GET_NAN_PAIRING_CAP(h_info),
                         GET_NAN_SUSPEND_CAP(h_info));
-
-                if (!id()) {
-                    ALOGE("Skip to send the nan cap cmd response, id() %d\n", id());
-                    return NL_SKIP;
-                }
             }
         }
 
@@ -5452,7 +5457,7 @@ static int get_svc_hash(unsigned char *svc_name,
     return WIFI_SUCCESS;
 }
 
-#ifdef CONFIG_BRCM
+#ifdef HAL_DEBUG
 static int dump_NanEnableRequest(NanEnableRequest* msg)
 {
     ALOGI("%s: Dump NanEnableRequest msg:\n", __func__);
@@ -5903,7 +5908,6 @@ static int dump_NanDataPathIndicationResponse(NanDataPathIndicationResponse* msg
     }
     return WIFI_SUCCESS;
 }
-#endif /* CONFIG_BRCM */
 
 static int dump_NanPairingRequest(NanPairingRequest* msg)
 {
@@ -5999,6 +6003,7 @@ static int dump_NanBootstrapingIndResponse(NanBootstrappingIndicationResponse* m
     }
     return WIFI_SUCCESS;
 }
+#endif /* HAL_DEBUG */
 
 void nan_reset_dbg_counters()
 {
@@ -6010,10 +6015,10 @@ wifi_error nan_cmn_enabe_request(transaction_id id,
         NanMacControl *cmd, NanEnableRequest* msg)
 {
     wifi_error ret = WIFI_SUCCESS;
-#ifdef CONFIG_BRCM
+#ifdef HAL_DEBUG
     // check up nan enable params from Nan manager level
     dump_NanEnableRequest(msg);
-#endif /* CONFIG_BRCM */
+#endif /* HAL_DEBUG */
     nan_reset_dbg_counters();
 
     cmd->setType(NAN_REQUEST_ENABLE);
@@ -6150,9 +6155,9 @@ wifi_error nan_publish_request(transaction_id id,
     wifi_handle handle = getWifiHandle(iface);
 
     ALOGI("Publish Nan, halHandle = %p\n", handle);
-#ifdef CONFIG_BRCM
+#ifdef HAL_DEBUG
     dump_NanPublishRequest(msg);
-#endif /* CONFIG_BRCM */
+#endif /* HAL_DEBUG */
 
     NanRequestType cmdType = NAN_REQUEST_PUBLISH;
     NanDiscEnginePrimitive *cmd = new NanDiscEnginePrimitive(iface, id, (void *)msg, cmdType);
@@ -6195,9 +6200,9 @@ wifi_error nan_subscribe_request(transaction_id id,
     wifi_handle handle = getWifiHandle(iface);
     ALOGI("Subscribe Nan, halHandle = %p handle[%d]\n", handle, msg->subscribe_id);
     NanDiscEnginePrimitive *cmd;
-#ifdef CONFIG_BRCM
+#ifdef HAL_DEBUG
     dump_NanSubscribeRequest(msg);
-#endif /* CONFIG_BRCM */
+#endif /* HAL_DEBUG */
 
     NanRequestType cmdType = NAN_REQUEST_SUBSCRIBE;
     cmd = new NanDiscEnginePrimitive(iface, id, (void *)msg, cmdType);
@@ -6240,9 +6245,9 @@ wifi_error nan_transmit_followup_request(transaction_id id,
     NanRequestType cmdType = NAN_REQUEST_TRANSMIT_FOLLOWUP;
     wifi_error ret = WIFI_SUCCESS;
 
-#ifdef CONFIG_BRCM
+#ifdef HAL_DEBUG
     dump_NanTransmitFollowupRequest(msg);
-#endif /* CONFIG_BRCM */
+#endif /* HAL_DEBUG */
     counters.transmit_req++;
     cmd = new NanDiscEnginePrimitive(iface, id, (void *)msg, cmdType);
     NULL_CHECK_RETURN(cmd, "memory allocation failure", WIFI_ERROR_OUT_OF_MEMORY);
@@ -6283,7 +6288,9 @@ wifi_error nan_pairing_request(transaction_id id,
         wifi_interface_handle iface, NanPairingRequest* msg)
 {
     NanRequestType cmdType = NAN_PAIRING_REQUEST;
+#ifdef HAL_DEBUG
     dump_NanPairingRequest(msg);
+#endif /* HAL_DEBUG */
 
     return nan_create_pairing_bootstrap_cmd_request(id, iface, (void *)msg, cmdType);
 }
@@ -6293,7 +6300,9 @@ wifi_error nan_pairing_indication_response(transaction_id id,
         wifi_interface_handle iface, NanPairingIndicationResponse* msg)
 {
     NanRequestType cmdType = NAN_PAIRING_IND_RESPONSE;
+#ifdef HAL_DEBUG
     dump_NanPairingIndResponse(msg);
+#endif /* HAL_DEBUG */
 
     return nan_create_pairing_bootstrap_cmd_request(id, iface, (void *)msg, cmdType);
 }
@@ -6312,7 +6321,9 @@ wifi_error nan_bootstrapping_request(transaction_id id,
         wifi_interface_handle iface, NanBootstrappingRequest* msg)
 {
     NanRequestType cmdType = NAN_BOOTSTRAPPING_REQUEST;
+#ifdef HAL_DEBUG
     dump_NanBootstrapingRequest(msg);
+#endif /* HAL_DEBUG */
 
     return nan_create_pairing_bootstrap_cmd_request(id, iface, (void *)msg, cmdType);
 }
@@ -6322,7 +6333,9 @@ wifi_error nan_bootstrapping_indication_response(transaction_id id,
         wifi_interface_handle iface, NanBootstrappingIndicationResponse* msg)
 {
     NanRequestType cmdType = NAN_BOOTSTRAPPING_IND_RESPONSE;
+#ifdef HAL_DEBUG
     dump_NanBootstrapingIndResponse(msg);
+#endif /* HAL_DEBUG */
 
     return nan_create_pairing_bootstrap_cmd_request(id, iface, (void *)msg, cmdType);
 }
@@ -6348,10 +6361,10 @@ wifi_error nan_config_request(transaction_id id,
 
     ALOGI("Configuring Nan, halHandle = %p\n", handle);
 
-#ifdef CONFIG_BRCM
+#ifdef HAL_DEBUG
     /* check up nan config params from Nan manager level */
     dump_NanConfigRequestRequest(msg);
-#endif /* CONFIG_BRCM */
+#endif /* HAL_DEBUG */
 
     NanMacControl *cmd = new NanMacControl(iface, id, (void *)msg, cmdType);
     NULL_CHECK_RETURN(cmd, "memory allocation failure", WIFI_ERROR_OUT_OF_MEMORY);
@@ -7486,9 +7499,10 @@ wifi_error nan_data_request_initiator(transaction_id id,
     NanRequestType cmdType;
     NanDataPathPrimitive *cmd = NULL;
 
-#ifdef CONFIG_BRCM
+#ifdef HAL_DEBUG
     dump_NanDataPathInitiatorRequest(msg);
-#endif /* CONFIG_BRCM */
+#endif /* HAL_DEBUG */
+
     counters.dp_req++;
     if (msg->service_name_len) {
         if (msg->service_name_len > NAN_MAX_SERVICE_NAME_LEN) {
@@ -7578,9 +7592,10 @@ wifi_error nan_data_indication_response(transaction_id id,
     u8 pub_nmi[NAN_MAC_ADDR_LEN] = {0};
     NanDataPathPrimitive *cmd = NULL;
 
-#ifdef CONFIG_BRCM
+#ifdef HAL_DEBUG
     dump_NanDataPathIndicationResponse(msg);
-#endif /* CONFIG_BRCM */
+#endif /* HAL_DEBUG */
+
     counters.dp_resp++;
     if (msg->service_name_len) {
         if (msg->service_name_len > NAN_MAX_SERVICE_NAME_LEN) {
