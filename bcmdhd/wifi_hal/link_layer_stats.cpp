@@ -491,8 +491,8 @@ private:
 
             if (!links_ptr->num_peers) {
                 ALOGI("no peers in unassoc case, skip processing peer stats\n");
-                ret = WIFI_SUCCESS;
-                continue;
+                ret = WIFI_ERROR_INVALID_ARGS;
+                goto exit;
             }
 
             if (links_ptr->num_peers != NUM_PEER_AP) {
