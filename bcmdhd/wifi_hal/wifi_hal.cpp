@@ -802,12 +802,13 @@ void wifi_event_loop(wifi_handle handle)
             // ALOGE("Error polling socket");
         } else if (pfd[0].revents & POLLERR) {
             ALOGE("POLL Error; error no = %d (%s)", errno, strerror(errno));
-            ssize_t result2 = TEMP_FAILURE_RETRY(read(pfd[0].fd, buf, sizeof(buf)));
-            ALOGE("Read after POLL returned %zd, error no = %d (%s)", result2,
-                  errno, strerror(errno));
             if (errno == WIFI_HAL_EVENT_BUFFER_NOT_AVAILABLE) {
-                ALOGE("Exit, No buffer space");
-                break;
+                ALOGE("Poll again, No buffer space");
+                internal_pollin_handler(handle);
+            } else {
+                ssize_t result2 = TEMP_FAILURE_RETRY(read(pfd[0].fd, buf, sizeof(buf)));
+                ALOGE("Read after POLL returned %zd, error no = %d (%s)", result2,
+                        errno, strerror(errno));
             }
         } else if (pfd[0].revents & POLLHUP) {
             ALOGE("Remote side hung up");

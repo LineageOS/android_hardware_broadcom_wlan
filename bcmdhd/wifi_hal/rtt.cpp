@@ -193,77 +193,122 @@ public:
 protected:
     virtual int handleResponse(WifiEvent& reply) {
         rtt_capabilities_mc_az_t SrcCapabilities;
+        rtt_capabilities_t mcSrcCapabilities;
         wifi_rtt_capabilities_v4 DestCapabilities;
 
         ALOGD("In GetRttCapabilitiesCommand::handleResponse");
 
         if ((reply.get_cmd() != NL80211_CMD_VENDOR) || (reply.get_vendor_data() == NULL) ||
-                (reply.get_vendor_data_len() < sizeof(rtt_capabilities_mc_az_t))) {
-            ALOGD("Ignoring reply with cmd = %d len = %d,"
-                    "min expected len %d, rtt capa size %d\n",
-                    reply.get_cmd(), reply.get_vendor_data_len(), sizeof(rtt_capabilities_mc_az_t));
+                (reply.get_vendor_data_len() < sizeof(rtt_capabilities_t))) {
+            ALOGD("Ignoring reply with cmd = %d "
+                    "min expected len %d, mc_az rtt capa size %d,"
+                    "  mc rtt capa size %d\n",
+                    reply.get_cmd(), reply.get_vendor_data_len(),
+                    sizeof(rtt_capabilities_mc_az_t), sizeof(rtt_capabilities_t));
             return NL_SKIP;
         }
 
         int id = reply.get_vendor_id();
         int subcmd = reply.get_vendor_subcmd();
-
         void *data = reply.get_vendor_data();
         int len = reply.get_vendor_data_len();
 
-        ALOGD("Id = %0x, subcmd = %d, len = %d, expected len = %d",
-                id, subcmd, len, sizeof(rtt_capabilities_mc_az_t));
+        ALOGD("Id = %0x, subcmd = %d, len = %d,"
+                " min expected len = %d, max exp len %d\n",
+                id, subcmd, len, sizeof(rtt_capabilities_t), sizeof(rtt_capabilities_mc_az_t));
 
         memset(&SrcCapabilities, 0, sizeof(SrcCapabilities));
+        memset(&mcSrcCapabilities, 0, sizeof(mcSrcCapabilities));
         memset(&DestCapabilities, 0, sizeof(DestCapabilities));
 
-        memcpy(&SrcCapabilities, data, min((int)sizeof(rtt_capabilities_mc_az_t), len));
+        if (len == sizeof(mcSrcCapabilities)) {
+            memcpy(&mcSrcCapabilities, data, min((int)sizeof(rtt_capabilities_t), len));
+            DestCapabilities.rtt_capab_v3.rtt_capab.rtt_one_sided_supported =
+                    mcSrcCapabilities.rtt_one_sided_supported;
 
-        DestCapabilities.rtt_capab_v3.rtt_capab.rtt_one_sided_supported =
-                SrcCapabilities.rtt_capab.rtt_one_sided_supported;
+            DestCapabilities.rtt_capab_v3.rtt_capab.rtt_ftm_supported =
+                    mcSrcCapabilities.rtt_ftm_supported;
 
-        DestCapabilities.rtt_capab_v3.rtt_capab.rtt_ftm_supported =
-                SrcCapabilities.rtt_capab.rtt_ftm_supported;
+            DestCapabilities.rtt_capab_v3.rtt_capab.lci_support =
+                    mcSrcCapabilities.lci_support;
 
-        DestCapabilities.rtt_capab_v3.rtt_capab.lci_support =
-                SrcCapabilities.rtt_capab.lci_support;
+            DestCapabilities.rtt_capab_v3.rtt_capab.lcr_support =
+                    mcSrcCapabilities.lcr_support;
 
-        DestCapabilities.rtt_capab_v3.rtt_capab.lcr_support =
-                SrcCapabilities.rtt_capab.lcr_support;
+            DestCapabilities.rtt_capab_v3.rtt_capab.preamble_support =
+                    mcSrcCapabilities.preamble_support;
 
-        DestCapabilities.rtt_capab_v3.rtt_capab.preamble_support =
-                SrcCapabilities.rtt_capab.preamble_support;
+            DestCapabilities.rtt_capab_v3.rtt_capab.bw_support =
+                    mcSrcCapabilities.bw_support;
 
-        DestCapabilities.rtt_capab_v3.rtt_capab.bw_support =
-                SrcCapabilities.rtt_capab.bw_support;
+            DestCapabilities.rtt_capab_v3.rtt_capab.responder_supported = 0;
 
-        DestCapabilities.rtt_capab_v3.rtt_capab.responder_supported = 0;
+            DestCapabilities.rtt_capab_v3.rtt_capab.mc_version = 0;
 
-        DestCapabilities.rtt_capab_v3.rtt_capab.mc_version = 0;
+            DestCapabilities.rtt_capab_v3.az_preamble_support = 0;
 
-        DestCapabilities.rtt_capab_v3.az_preamble_support =
-                 (rtt_cap_preamble_type_t)SrcCapabilities.az_preamble_support;
+            DestCapabilities.rtt_capab_v3.az_bw_support = 0;
 
-        DestCapabilities.rtt_capab_v3.az_bw_support =
-                SrcCapabilities.az_bw_support;
+            DestCapabilities.rtt_capab_v3.ntb_initiator_supported = 0;
 
-        DestCapabilities.rtt_capab_v3.ntb_initiator_supported =
-                SrcCapabilities.ntb_initiator_supported;
+            DestCapabilities.rtt_capab_v3.ntb_responder_supported = 0;
 
-        DestCapabilities.rtt_capab_v3.ntb_responder_supported =
-                SrcCapabilities.ntb_responder_supported;
+            DestCapabilities.secure_he_ltf_supported = 0;
 
-        DestCapabilities.secure_he_ltf_supported =
-                SrcCapabilities.secure_he_ltf_supported;
+            DestCapabilities.ranging_fame_protection_supported = 0;
 
-        DestCapabilities.ranging_fame_protection_supported =
-                SrcCapabilities.protected_rtt_frm_supported;
+            DestCapabilities.supported_akms = WPA_KEY_MGMT_NONE;
 
-        DestCapabilities.supported_akms =
-                (wifi_rtt_akm)SrcCapabilities.supported_akms;
+            DestCapabilities.supported_cipher_suites = WPA_CIPHER_NONE;
+        } else {
+            memcpy(&SrcCapabilities, data, min((int)sizeof(rtt_capabilities_mc_az_t), len));
 
-        DestCapabilities.supported_cipher_suites =
-                (wifi_rtt_cipher_suite)SrcCapabilities.supported_cipher_suites;
+            DestCapabilities.rtt_capab_v3.rtt_capab.rtt_one_sided_supported =
+                    SrcCapabilities.rtt_capab.rtt_one_sided_supported;
+
+            DestCapabilities.rtt_capab_v3.rtt_capab.rtt_ftm_supported =
+                    SrcCapabilities.rtt_capab.rtt_ftm_supported;
+
+            DestCapabilities.rtt_capab_v3.rtt_capab.lci_support =
+                    SrcCapabilities.rtt_capab.lci_support;
+
+            DestCapabilities.rtt_capab_v3.rtt_capab.lcr_support =
+                    SrcCapabilities.rtt_capab.lcr_support;
+
+            DestCapabilities.rtt_capab_v3.rtt_capab.preamble_support =
+                    SrcCapabilities.rtt_capab.preamble_support;
+
+            DestCapabilities.rtt_capab_v3.rtt_capab.bw_support =
+                    SrcCapabilities.rtt_capab.bw_support;
+
+            DestCapabilities.rtt_capab_v3.rtt_capab.responder_supported = 0;
+
+            DestCapabilities.rtt_capab_v3.rtt_capab.mc_version = 0;
+
+            DestCapabilities.rtt_capab_v3.az_preamble_support =
+                     (rtt_cap_preamble_type_t)SrcCapabilities.az_preamble_support;
+
+            DestCapabilities.rtt_capab_v3.az_bw_support =
+                    SrcCapabilities.az_bw_support;
+
+            DestCapabilities.rtt_capab_v3.ntb_initiator_supported =
+                    SrcCapabilities.ntb_initiator_supported;
+
+            DestCapabilities.rtt_capab_v3.ntb_responder_supported =
+                    SrcCapabilities.ntb_responder_supported;
+
+            DestCapabilities.secure_he_ltf_supported =
+                    SrcCapabilities.secure_he_ltf_supported;
+
+            DestCapabilities.ranging_fame_protection_supported =
+                    SrcCapabilities.protected_rtt_frm_supported;
+
+            DestCapabilities.supported_akms =
+                    (wifi_rtt_akm)SrcCapabilities.supported_akms;
+
+            DestCapabilities.supported_cipher_suites =
+                    (wifi_rtt_cipher_suite)SrcCapabilities.supported_cipher_suites;
+        }
 
         memcpy(mCapabilities, &DestCapabilities, sizeof(DestCapabilities));
         return NL_OK;
@@ -400,7 +445,6 @@ protected:
     }
 
 };
-
 
 class RttCommand : public WifiCommand
 {
@@ -566,7 +610,8 @@ public:
             }
 
             /* Below params are applicable for only 11az ranging */
-            if (rttParamsV1->type == RTT_TYPE_2_SIDED_11AZ_NTB) {
+            if ((rttParamsV1->type == RTT_TYPE_2_SIDED_11AZ_NTB) ||
+                    (rttParamsV1->type == RTT_TYPE_2_SIDED_11AZ_NTB_SECURE)) {
                 result = request.put_u32(RTT_ATTRIBUTE_TARGET_NTB_MIN_MEAS_TIME,
                         rttParamsV3->ntb_min_measurement_time);
                 if (result < 0) {
@@ -990,6 +1035,37 @@ public:
             unregisterVendorHandler(GOOGLE_OUI, RTT_EVENT_COMPLETE);
             {
                 if (*rttHandlerV4.on_rtt_results_v4) {
+#ifdef HAL_DEBUG
+                    ALOGI("Current Id: %d: retrieved rtt_resultv4 :\n"
+                            " burst_num : %d, measurement_number : %d,\n"
+                            " success_number : %d, number_per_burst_peer : %d, status : %s,\n"
+                            " retry_after_duration : %d rssi : %d dbm,\n"
+                            " rx_rate : %d Kbps, rtt : %lu pss, rtt_sd : %lu ps,\n"
+                            " distance : %d mm, burst_duration : %d ms, freq : %d,\n"
+                            " packet_bw : %d, negotiated_burst_num : %d\n",
+                            currentIdx,
+                            rttResultsV4[currentIdx]->rtt_result_v3.rtt_result.rtt_result.burst_num,
+                            rttResultsV4[currentIdx]->rtt_result_v3.rtt_result.rtt_result.measurement_number,
+                            rttResultsV4[currentIdx]->rtt_result_v3.rtt_result.rtt_result.success_number,
+                            rttResultsV4[currentIdx]->rtt_result_v3.rtt_result.rtt_result.number_per_burst_peer,
+                            get_err_info(rttResultsV4[currentIdx]->rtt_result_v3.rtt_result.rtt_result.status),
+                            rttResultsV4[currentIdx]->rtt_result_v3.rtt_result.rtt_result.retry_after_duration,
+                            rttResultsV4[currentIdx]->rtt_result_v3.rtt_result.rtt_result.rssi,
+                            rttResultsV4[currentIdx]->rtt_result_v3.rtt_result.rtt_result.rx_rate.bitrate * 100,
+                            (unsigned long)rttResultsV4[currentIdx]->rtt_result_v3.rtt_result.rtt_result.rtt,
+                            (unsigned long)rttResultsV4[currentIdx]->rtt_result_v3.rtt_result.rtt_result.rtt_sd,
+                            rttResultsV4[currentIdx]->rtt_result_v3.rtt_result.rtt_result.distance_mm,
+                            rttResultsV4[currentIdx]->rtt_result_v3.rtt_result.rtt_result.burst_duration,
+                            rttResultsV4[currentIdx]->rtt_result_v3.rtt_result.frequency,
+                            rttResultsV4[currentIdx]->rtt_result_v3.rtt_result.packet_bw,
+                            rttResultsV4[currentIdx]->rtt_result_v3.rtt_result.rtt_result.negotiated_burst_num);
+                    ALOGE("is_ranging_protection_enabled == %d",
+                           rttResultsV4[currentIdx]->is_ranging_protection_enabled);
+                    ALOGE("is_secure_he_ltf_enabled == %d",
+                           rttResultsV4[currentIdx]->is_secure_he_ltf_enabled);
+                    ALOGE("base_akm == %d", rttResultsV4[currentIdx]->base_akm);
+                    ALOGE("cipher_suite == %d", rttResultsV4[currentIdx]->cipher_suite);
+#endif /* HAL_DEBUG */
                     (*rttHandlerV4.on_rtt_results_v4)(id(), totalCnt, rttResultsV4);
                 }
             }
