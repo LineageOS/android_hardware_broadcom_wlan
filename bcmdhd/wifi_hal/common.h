@@ -64,7 +64,7 @@ const uint32_t BRCM_OUI =  0x001018;
 #define SAR_CONFIG_SCENARIO_COUNT       100
 #define MAX_NUM_RADIOS                  3u
 #define MAX_CMD_RESP_BUF_LEN            8192u
-#define MAX_MLO_LINK                    3u
+#define MAX_MLO_LINK                    4u
 /* For STA, peer would be only one - AP.*/
 #define NUM_PEER_AP                     1u
 /* 11n/HT:   OFDM(12) + HT(16) rates = 28 (MCS0 ~ MCS15)
@@ -74,6 +74,8 @@ const uint32_t BRCM_OUI =  0x001018;
  */
 #define MAX_NUM_RATE                        44u
 #define NUM_RATE_NON_BE                 36u
+#define NUM_RATE_VHT                    28u
+#define NUM_RATE_HT                     12u
 
 #define NL_MSG_MAX_LEN                  5120u
 

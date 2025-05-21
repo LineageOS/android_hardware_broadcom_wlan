@@ -402,6 +402,17 @@ wifi_ring_buffer_id ringId = -1;
 
 #define C2S(x)  case x: return #x;
 
+static const char *TrafficACToString(int ac) {
+    switch (ac) {
+    C2S(WIFI_AC_VO)
+    C2S(WIFI_AC_VI)
+    C2S(WIFI_AC_BE)
+    C2S(WIFI_AC_BK)
+    default:
+        return "Unknown traffic ac";
+    }
+}
+
 static const char *RBentryTypeToString(int cmd) {
     switch (cmd) {
         C2S(ENTRY_TYPE_CONNECT_EVENT)
@@ -1279,6 +1290,7 @@ static void onRTTResultsV4(wifi_request_id id, unsigned num_results,
                                 "\ttype : %d, rssi : %d dbm, rx_rate : %d"
                                 " Kbps, rtt : %lu ps,\n"
                                 "\trtt_sd : %lu ps, distance : %d mm,"
+                                " timestamp : %lu us,\n"
                                 " burst_duration : %d ms,\n"
                                 "\tnegotiated_burst_num : %d,\n",
                                 rtt_result_v1->burst_num,
@@ -1293,6 +1305,7 @@ static void onRTTResultsV4(wifi_request_id id, unsigned num_results,
                                 (unsigned long)rtt_result_v1->rtt,
                                 (unsigned long)rtt_result_v1->rtt_sd,
                                 rtt_result_v1->distance_mm,
+                                rtt_result_v1->ts,
                                 rtt_result_v1->burst_duration,
                                 rtt_result_v1->negotiated_burst_num);
 
@@ -1318,11 +1331,15 @@ static void onRTTResultsV4(wifi_request_id id, unsigned num_results,
                         printMsg("\ti2r_tx_ltf_repetition_cnt: %u,\n"
                                 " \tr2i_tx_ltf_repetition_cnt: %u,\n"
                                 " \tntb min meas_time: %lu units of 100us,\n"
-                                " \tntb max meas_time: %lu units of 10ms\n",
+                                " \tntb max meas_time: %lu units of 10ms\n"
+                                " \tnum_tx_sts: %u,\n"
+                                " \tnum_rx_sts: %u,\n",
                                 rtt_result_v3->i2r_tx_ltf_repetition_count,
                                 rtt_result_v3->r2i_tx_ltf_repetition_count,
                                 rtt_result_v3->ntb_min_measurement_time,
-                                rtt_result_v3->ntb_max_measurement_time);
+                                rtt_result_v3->ntb_max_measurement_time,
+                                rtt_result_v3->num_tx_sts,
+                                rtt_result_v3->num_rx_sts);
                 }
             }
 
@@ -4689,9 +4706,57 @@ const char *rates[] = {
     "HT N/A   | VHT/HE MCS11 NSS2",
 };
 
+const char *rates_vht[] = {
+    "OFDM/LEGACY 1Mbps",
+    "OFDM/LEGACY 2Mbps",
+    "OFDM/LEGACY 5.5Mbps",
+    "OFDM/LEGACY 6Mbps",
+    "OFDM/LEGACY 9Mbps",
+    "OFDM/LEGACY 11Mbps",
+    "OFDM/LEGACY 12Mbps",
+    "OFDM/LEGACY 18Mbps",
+    "OFDM/LEGACY 24Mbps",
+    "OFDM/LEGACY 36Mbps",
+    "OFDM/LEGACY 48Mbps",
+    "OFDM/LEGACY 54Mbps",
+    "HT MCS0  | VHT/HE MCS0  NSS1",
+    "HT MCS1  | VHT/HE MCS1  NSS1",
+    "HT MCS2  | VHT/HE MCS2  NSS1",
+    "HT MCS3  | VHT/HE MCS3  NSS1",
+    "HT MCS4  | VHT/HE MCS4  NSS1",
+    "HT MCS5  | VHT/HE MCS5  NSS1",
+    "HT MCS6  | VHT/HE MCS6  NSS1",
+    "HT MCS7  | VHT/HE MCS7  NSS1",
+    "HT MCS8  | VHT/HE MCS8  NSS1",
+    "HT MCS9  | VHT/HE MCS9  NSS1",
+    "HT MCS10 | VHT/HE MCS10 NSS1",
+    "HT MCS11 | VHT/HE MCS11 NSS1",
+    "HT MCS12 | VHT/HE MCS0  NSS2",
+    "HT MCS13 | VHT/HE MCS1  NSS2",
+    "HT MCS14 | VHT/HE MCS2  NSS2",
+    "HT MCS15 | VHT/HE MCS3  NSS2",
+};
+
+const char *rates_ht[] = {
+    "OFDM/LEGACY 1Mbps",
+    "OFDM/LEGACY 2Mbps",
+    "OFDM/LEGACY 5.5Mbps",
+    "OFDM/LEGACY 6Mbps",
+    "OFDM/LEGACY 9Mbps",
+    "OFDM/LEGACY 11Mbps",
+    "OFDM/LEGACY 12Mbps",
+    "OFDM/LEGACY 18Mbps",
+    "OFDM/LEGACY 24Mbps",
+    "OFDM/LEGACY 36Mbps",
+    "OFDM/LEGACY 48Mbps",
+    "OFDM/LEGACY 54Mbps",
+};
+
 /* Legacy rates */
-#define NUM_RATES (sizeof(rates)/sizeof(rates[0]))
+#define MAX_NUM_RATES (sizeof(rates)/sizeof(rates[0]))
 #define NUM_EHT_RATES (sizeof(eht_rates)/sizeof(eht_rates[0]))
+#define NUM_VHT_RATES (sizeof(rates_vht)/sizeof(rates_vht[0]))
+#define NUM_HT_RATES  (sizeof(rates_ht)/sizeof(rates_ht[0]))
 
 #define RATE_SPEC_STR_LEN       10
 #define RATE_SPEC_CHECK_INDEX   27
@@ -4714,6 +4779,7 @@ const short int rate_stat_bandwidth[] = {
 
 int radios = 0;
 int ml_links = 0;
+bool ml_data = false;
 
 wifi_radio_stat rx_stat[MAX_NUM_RADIOS];
 wifi_channel_stat cca_stat[MAX_CH_BUF_SIZE];
@@ -4736,9 +4802,17 @@ void updateRateStats(u8 **buf, int num_rates) {
             printMsg("%-28s  %10d   %10d     %10d      %10d\n",
                 eht_rates[k], local_ratestat_ptr->tx_mpdu, local_ratestat_ptr->rx_mpdu,
                     local_ratestat_ptr->mpdu_lost, local_ratestat_ptr->retries);
-        } else if (num_rates == NUM_RATES) {
+        } else if (num_rates == MAX_NUM_RATES) {
             printMsg("%-28s  %10d   %10d     %10d      %10d\n",
                 rates[k], local_ratestat_ptr->tx_mpdu, local_ratestat_ptr->rx_mpdu,
+                    local_ratestat_ptr->mpdu_lost, local_ratestat_ptr->retries);
+        } else if (num_rates == NUM_RATE_VHT) {
+            printMsg("%-28s  %10d   %10d     %10d      %10d\n",
+                rates_vht[k], local_ratestat_ptr->tx_mpdu, local_ratestat_ptr->rx_mpdu,
+                    local_ratestat_ptr->mpdu_lost, local_ratestat_ptr->retries);
+        } else if (num_rates == NUM_RATE_HT) {
+            printMsg("%-28s  %10d   %10d     %10d      %10d\n",
+                rates_ht[k], local_ratestat_ptr->tx_mpdu, local_ratestat_ptr->rx_mpdu,
                     local_ratestat_ptr->mpdu_lost, local_ratestat_ptr->retries);
         } else {
             printMsg("num_rates %d value is not supported\n", num_rates);
@@ -4766,8 +4840,10 @@ void update_peer_info_per_link(u8 **buf) {
         return;
     }
 
-    if ((local_peer_ptr->num_rate == NUM_RATES) ||
-        (local_peer_ptr->num_rate == NUM_EHT_RATES)) {
+    if ((local_peer_ptr->num_rate == MAX_NUM_RATES) ||
+        (local_peer_ptr->num_rate == NUM_EHT_RATES) ||
+        (local_peer_ptr->num_rate == NUM_RATE_HT) ||
+        (local_peer_ptr->num_rate == NUM_RATE_VHT)) {
         printPeerinfoStats(local_peer_ptr);
         *buf += offsetof(wifi_peer_info, rate_stats);
         if (!*buf) {
@@ -4796,23 +4872,12 @@ void printPerLinkStats(wifi_link_stat *local_link_ptr, int link_id) {
     printMsg("RSSI mgmt = %d\n", local_link_ptr->rssi_mgmt);
     printMsg("RSSI data = %d\n", local_link_ptr->rssi_data);
     printMsg("RSSI ack = %d\n", local_link_ptr->rssi_ack);
-    printMsg("AC_BE:\n");
-    printMsg("txmpdu = %d\n", local_link_ptr->ac[WIFI_AC_BE].tx_mpdu);
-    printMsg("rxmpdu = %d\n", local_link_ptr->ac[WIFI_AC_BE].rx_mpdu);
-    printMsg("mpdu_lost = %d\n", local_link_ptr->ac[WIFI_AC_BE].mpdu_lost);
-    printMsg("retries = %d\n", local_link_ptr->ac[WIFI_AC_BE].retries);
-    printMsg("AC_BK:\n");
-    printMsg("txmpdu = %d\n", local_link_ptr->ac[WIFI_AC_BK].tx_mpdu);
-    printMsg("rxmpdu = %d\n", local_link_ptr->ac[WIFI_AC_BK].rx_mpdu);
-    printMsg("mpdu_lost = %d\n", local_link_ptr->ac[WIFI_AC_BK].mpdu_lost);
-    printMsg("AC_VI:\n");
-    printMsg("txmpdu = %d\n", local_link_ptr->ac[WIFI_AC_VI].tx_mpdu);
-    printMsg("rxmpdu = %d\n", local_link_ptr->ac[WIFI_AC_VI].rx_mpdu);
-    printMsg("mpdu_lost = %d\n", local_link_ptr->ac[WIFI_AC_VI].mpdu_lost);
-    printMsg("AC_VO:\n");
-    printMsg("txmpdu = %d\n", local_link_ptr->ac[WIFI_AC_VO].tx_mpdu);
-    printMsg("rxmpdu = %d\n", local_link_ptr->ac[WIFI_AC_VO].rx_mpdu);
-    printMsg("mpdu_lost = %d\n", local_link_ptr->ac[WIFI_AC_VO].mpdu_lost);
+    for (int i = WIFI_AC_VO; i < WIFI_AC_MAX; i++) {
+        printMsg("Traffic AC: %s\n", TrafficACToString(i));
+        printMsg("txmpdu = %d, rxmpdu = %d, mpdu_lost = %d, retries = %d\n",
+                local_link_ptr->ac[i].tx_mpdu, local_link_ptr->ac[i].rx_mpdu,
+                local_link_ptr->ac[i].mpdu_lost, local_link_ptr->ac[i].retries);
+    }
     printMsg("time slicing duty_cycle = %d\n", local_link_ptr->time_slicing_duty_cycle_percent);
     printMsg("Num peers = %d\n", local_link_ptr->num_peers);
 }
@@ -4882,6 +4947,8 @@ void onMultiLinkStatsResults(wifi_request_id id, wifi_iface_ml_stat *iface_ml_st
         local_rx_ptr += channel_size;
         local_cca_ptr += channel_size;
     }
+
+    ml_data = true;
     /* radio stat data and channel stats data is printed in printMultiLinkStats */
     if (!iface_ml_stat) {
         ALOGE("No valid ml stats data\n");
@@ -4910,7 +4977,7 @@ wifi_iface_stat link_stat;
 int num_rate;
 bssload_info_t bssload;
 wifi_peer_info peer_info[32];
-wifi_rate_stat rate_stat[NUM_RATES];
+wifi_rate_stat rate_stat[MAX_NUM_RATES];
 wifi_rate_stat eht_rate_stat[NUM_EHT_RATES];
 
 void onLinkStatsResults(wifi_request_id id, wifi_iface_stat *iface_stat,
@@ -4971,7 +5038,7 @@ void onLinkStatsResults(wifi_request_id id, wifi_iface_stat *iface_stat,
     if (num_rate == NUM_EHT_RATES) {
         memset(eht_rate_stat, 0, num_rate*sizeof(wifi_rate_stat));
         memcpy(&eht_rate_stat, iface_stat->peer_info->rate_stats, num_rate*sizeof(wifi_rate_stat));
-    } else if (num_rate == NUM_RATES) {
+    } else if (num_rate == MAX_NUM_RATES) {
         memset(rate_stat, 0, num_rate*sizeof(wifi_rate_stat));
         memcpy(&rate_stat, iface_stat->peer_info->rate_stats, num_rate*sizeof(wifi_rate_stat));
     }
@@ -5166,7 +5233,7 @@ void printLinkStats(wifi_iface_stat *link_stat, wifi_channel_stat cca_stat[],
         printMsg("(current BSS info: %s, %dMhz)\n",
             rate_stat_preamble[eht_rate_stat[RATE_SPEC_CHECK_INDEX].rate.preamble],
             rate_stat_bandwidth[eht_rate_stat[RATE_SPEC_CHECK_INDEX].rate.bw]);
-    } else if (num_rate == NUM_RATES) {
+    } else if (num_rate == MAX_NUM_RATES) {
         printMsg("(current BSS info: %s, %dMhz)\n",
             rate_stat_preamble[rate_stat[RATE_SPEC_CHECK_INDEX].rate.preamble],
             rate_stat_bandwidth[rate_stat[RATE_SPEC_CHECK_INDEX].rate.bw]);
@@ -5182,7 +5249,7 @@ void printLinkStats(wifi_iface_stat *link_stat, wifi_channel_stat cca_stat[],
             printMsg("%-28s  %10d   %10d     %10d      %10d\n",
                 eht_rates[i], eht_rate_stat[i].tx_mpdu, eht_rate_stat[i].rx_mpdu,
                 eht_rate_stat[i].mpdu_lost, eht_rate_stat[i].retries);
-        } else if (num_rate == NUM_RATES) {
+        } else if (num_rate == MAX_NUM_RATES) {
             printMsg("%-28s  %10d   %10d     %10d      %10d\n",
                 rates[i], rate_stat[i].tx_mpdu, rate_stat[i].rx_mpdu,
                 rate_stat[i].mpdu_lost, rate_stat[i].retries);
@@ -5190,20 +5257,49 @@ void printLinkStats(wifi_iface_stat *link_stat, wifi_channel_stat cca_stat[],
     }
 }
 
-void getLinkStats(void)
+void getLinkStats(char *argv[])
 {
+    wifi_error ret = WIFI_SUCCESS;
+    char *param, *val_p;
+    /* Interface name */
+    wifi_interface_handle ifHandle = NULL;
+    /* skip utility */
+    argv++;
+    /* skip command */
+    argv++;
+
+    /* Parse iface */
+    while ((param = *argv++) != NULL) {
+        val_p = *argv++;
+        if (!val_p || *val_p == '-') {
+            printMsg("%s:Need value following %s\n", __FUNCTION__, param);
+            return;
+        }
+        if (strcmp(param, "-iface") == 0) {
+            ifHandle = wifi_get_iface_handle_by_iface_name(val_p);
+        } else {
+            printMsg("%s:Unsupported Parameter for get stats request\n", __FUNCTION__);
+            return;
+        }
+    }
+
+    if (ifHandle == NULL) {
+        printMsg("-iface <> is mandatory\n");
+        return;
+    }
+
     wifi_stats_result_handler handler;
     memset(&handler, 0, sizeof(handler));
 
     handler.on_link_stats_results = &onLinkStatsResults;
     handler.on_multi_link_stats_results = &onMultiLinkStatsResults;
 
-    int result = hal_fn.wifi_get_link_stats(0, wlan0Handle, handler);
+    int result = hal_fn.wifi_get_link_stats(0, ifHandle, handler);
     if (result < 0) {
         printMsg("failed to get link stat - %d\n", result);
     } else if (!radios) {
         printMsg("Invalid link stat data\n");
-    } else if (ml_links) {
+    } else if (ml_data) {
         printMultiLinkStats(cca_stat, rx_stat, radios);
     } else {
         printLinkStats(&link_stat, cca_stat, rx_stat, &bssload, radios);
@@ -10511,7 +10607,7 @@ int main(int argc, char *argv[]) {
         setPnoMacOui();
         testHotlistAPs();
     } else if (strcmp(argv[1], "-stats") == 0) {
-        getLinkStats();
+        getLinkStats(argv);
     } else if (strcmp(argv[1], "-rtt") == 0) {
         readRTTOptions(argc, ++argv);
         testRTT();
