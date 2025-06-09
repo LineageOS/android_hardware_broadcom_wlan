@@ -317,6 +317,7 @@ public:
     int requestEvent(int cmd);
     int requestVendorEvent(uint32_t id, int subcmd);
     int requestResponse(WifiRequest& request);
+    int requestDebugResponse(WifiRequest& request);
 
 protected:
     wifi_handle wifiHandle() {

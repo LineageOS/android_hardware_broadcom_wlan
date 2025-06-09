@@ -718,6 +718,45 @@ out:
     return mapErrorCodes(err);
 }
 
+int WifiCommand::requestDebugResponse(WifiRequest& request) {
+    int err = 0, res = 0;
+
+    ALOGI("Enter: requestDebugResponse");
+    struct nl_cb *cb = nl_cb_alloc(NL_CB_DEFAULT);
+    if (!cb) {
+        ALOGE("nl80211: cb alloc failed");
+        goto out;
+    }
+
+    if (!mInfo->debug_cmd_sock) {
+        ALOGE("debug_cmd_sock is already freed mInfo:%p mIfaceInfo:%p\n", mInfo, mIfaceInfo);
+        goto out;
+    }
+
+    err = nl_send_auto_complete(mInfo->debug_cmd_sock, request.getMessage());    /* send message */
+    if (err < 0)
+        goto out;
+
+    err = 1;
+
+    nl_cb_set(cb, NL_CB_SEQ_CHECK, NL_CB_CUSTOM, no_seq_check, NULL);
+    nl_cb_err(cb, NL_CB_CUSTOM, error_handler, &err);
+    nl_cb_set(cb, NL_CB_FINISH, NL_CB_CUSTOM, finish_handler, &err);
+    nl_cb_set(cb, NL_CB_ACK, NL_CB_CUSTOM, ack_handler, &err);
+    nl_cb_set(cb, NL_CB_VALID, NL_CB_CUSTOM, response_handler, this);
+
+    while (err > 0) {                   /* wait for reply */
+        res = nl_recvmsgs(mInfo->debug_cmd_sock, cb);
+        if (res) {
+            ALOGE("nl80211: %s->nl_recvmsgs failed: %d", __func__, res);
+        }
+    }
+out:
+    nl_cb_put(cb);
+    ALOGI("Exit: requestDebugResponse");
+    return mapErrorCodes(err);
+}
+
 int WifiCommand::requestEvent(int cmd) {
 
     ALOGD("requesting event %d", cmd);
