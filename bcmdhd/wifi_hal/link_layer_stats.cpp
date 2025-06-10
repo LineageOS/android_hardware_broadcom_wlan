@@ -280,7 +280,10 @@ exit:
         /* report valid radiostat eventhough there is no linkstat info
          * (non assoc/error case)
          */
-        if ((ret != WIFI_SUCCESS) && num_radios && per_radio_size) {
+        if ((ret != WIFI_SUCCESS) && num_radios && per_radio_size && ml_data) {
+            (*mHandler.on_multi_link_stats_results)(id, NULL, num_radios,
+                    (wifi_radio_stat *)radioStatsBuf);
+        } else if ((ret != WIFI_SUCCESS) && num_radios && per_radio_size) {
             (*mHandler.on_link_stats_results)(id, NULL,
                     num_radios, (wifi_radio_stat *)radioStatsBuf);
         }
@@ -335,6 +338,8 @@ private:
             goto exit;
         }
 
+        ALOGV("Available data_rem_len %d, expected size %d for rate_stat\n",
+                *data_rem_len, all_rates_size);
         for (k = 0; k < num_rate; k++) {
             data_ptr = ((*data) + (*offset));
             if (!data_ptr) {
@@ -358,6 +363,8 @@ private:
                 goto exit;
             }
 
+            ALOGI("index: %d per_rate_size %d, data_rem_len %d\n",
+                   k, per_rate_size, *data_rem_len);
             memcpy(*outbuf, data_ptr, per_rate_size);
             *data_rem_len -= per_rate_size;
             *outbuf_rem_len -= per_rate_size;
@@ -491,8 +498,7 @@ private:
 
             if (!links_ptr->num_peers) {
                 ALOGI("no peers in unassoc case, skip processing peer stats\n");
-                ret = WIFI_ERROR_INVALID_ARGS;
-                goto exit;
+                continue;
             }
 
             if (links_ptr->num_peers != NUM_PEER_AP) {
