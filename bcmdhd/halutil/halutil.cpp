@@ -1701,7 +1701,7 @@ static void testRTT()
                                default_rtt_param_v3.ntb_max_measurement_time;
                    }
 
-                    printf("file: num_frames_per_burst %d, ntb_min %lld, ntb_max %lld\n",
+                    printf("file: num_frames_per_burst %d, ntb_min %" PRIu64 ", ntb_max %" PRIu64 "\n",
                             rtt_config_v1->num_frames_per_burst,
                             rtt_config->ntb_min_measurement_time,
                             rtt_config->ntb_max_measurement_time);
@@ -1835,7 +1835,7 @@ static void testRTT()
                          default_rtt_param_v3.ntb_max_measurement_time;
             }
 
-            printf("single target: type %d num_frames_per_burst %d, ntb_min %lld, ntb_max %lld\n",
+            printf("single target: type %d num_frames_per_burst %d, ntb_min %" PRIu64 ", ntb_max %" PRIu64 "\n",
                     rtt_config_v1->type,
                     rtt_config_v1->num_frames_per_burst,
                     rtt_config->ntb_min_measurement_time,
@@ -1942,7 +1942,7 @@ static void testRTT()
 
                 if ((rtt_config_v1->type == RTT_TYPE_2_SIDED_11AZ_NTB) ||
                         (rtt_config_v1->type == RTT_TYPE_2_SIDED_11AZ_NTB_SECURE)) {
-                    result = fscanf(fp, "%lld %lld\n",
+                    result = fscanf(fp, "%lu %lu\n",
                             (unsigned long int*)&rtt_config->ntb_min_measurement_time,
                             (unsigned long int*)&rtt_config->ntb_max_measurement_time);
                     if (result != 2) {
@@ -4263,7 +4263,7 @@ void readRTTOptions(int argc, char *argv[]) {
                     (type == RTT_TYPE_2_SIDED_11AZ_NTB_SECURE))) {
                 if (isdigit(argv[j+1][0])) {
                     j++;
-                    printf("ntb_min_meas_time : %lu \n", atoi(argv[j]));
+                    printf("ntb_min_meas_time : %d \n", atoi(argv[j]));
                     ntb_min_meas_time = atoi(argv[j]);
                 }
             }
@@ -4273,7 +4273,7 @@ void readRTTOptions(int argc, char *argv[]) {
                     (type == RTT_TYPE_2_SIDED_11AZ_NTB_SECURE))) {
                 if (isdigit(argv[j+1][0])) {
                     j++;
-                    printf("ntb_max_meas_time : %lu \n", atoi(argv[j]));
+                    printf("ntb_max_meas_time : %d \n", atoi(argv[j]));
                     ntb_max_meas_time = atoi(argv[j]);
                 }
             }
