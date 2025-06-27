@@ -1993,7 +1993,7 @@ public:
                         EWP_EventAttrToString(attr), result);
                     continue;
                 }
-                result = requestResponse(request);
+                result = requestDebugResponse(request);
                 if (result != WIFI_SUCCESS) {
                     ALOGE("Failed to register get ring dump response for attr = %s; result = %d",
                         EWP_EventAttrToString(attr), result);
