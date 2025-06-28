@@ -151,7 +151,7 @@ static const strmap_entry_t err_info[] = {
     {RTT_STATUS_ABORTED, String8("aborted")}
 };
 
-    static const char*
+static const char*
 get_err_info(int status)
 {
     int i;
@@ -222,7 +222,7 @@ protected:
         memset(&DestCapabilities, 0, sizeof(DestCapabilities));
 
         if (len == sizeof(mcSrcCapabilities)) {
-            memcpy(&mcSrcCapabilities, data, min((int)sizeof(rtt_capabilities_t), len));
+            memcpy(&mcSrcCapabilities, data, len);
             DestCapabilities.rtt_capab_v3.rtt_capab.rtt_one_sided_supported =
                     mcSrcCapabilities.rtt_one_sided_supported;
 
@@ -938,94 +938,132 @@ public:
                             break;
                         }
                     } else if (it2.get_type() == RTT_ATTRIBUTE_RESULT) {
-                        currentIdx = nextidx;
-                        int result_len = it2.get_len();
-                        if (!result_len) {
-                            ALOGE("Invalid result_len %d\n", result_len);
-                            break;
+                        u8 *data = nullptr;
+                        uint32_t result_len = 0;
+                        dot11_rm_ie_t *ele_1 = nullptr;
+                        size_t data_size = 0;
+                        size_t opt_result_size = 0;
+                        int ret;
+
+                        data = (u8 *)it2.get_data();  // Use it2, not it, for current attribute
+                        result_len = it2.get_len();
+
+                        if (!data || result_len < RTT_RESULT_V1_SIZE) {
+                            ALOGE("%s: null or insufficient data (len=%u)\n", __func__, result_len);
+                            ret = WIFI_ERROR_INVALID_ARGS;
+                            goto error;
                         }
-                        rttResultsV1[currentIdx] =
-                                (wifi_rtt_result *)malloc(it2.get_len());
+
+                        data_size = RTT_RESULT_V1_SIZE;
+
+                        if (result_len == RTT_RESULT_V1_SIZE) {
+                            ALOGI("rtt result with no optional data!\n");
+                        } else if (result_len > RTT_RESULT_V1_SIZE) {
+                            size_t offset = RTT_RESULT_V1_SIZE;
+                            while (offset + sizeof(dot11_rm_ie_t) <= result_len) {
+                                ele_1 = (dot11_rm_ie_t *)(data + offset);
+                                size_t ie_total_len = (size_t)ele_1->len + DOT11_HDR_LEN;
+
+                                if (offset + ie_total_len > result_len) {
+                                    ALOGE("%s: Optional element overruns buffer"
+                                          " (offset=%zu, ie_len=%zu, result_len=%u)\n",
+                                          __func__, offset, ie_total_len, result_len);
+                                    ret = WIFI_ERROR_INVALID_ARGS;
+                                    goto error;
+                                }
+
+                                if (ele_1->id == DOT11_MNG_MEASURE_REPORT_ID) {
+                                    if (ele_1->type == DOT11_MEASURE_TYPE_LCI ||
+                                        ele_1->type == DOT11_MEASURE_TYPE_CIVICLOC) {
+                                        data_size += ie_total_len;
+                                        offset += ie_total_len;
+                                    } else {
+                                        ALOGE("%s: Corrupt data! Unknown measure type %d (len %u)\n",
+                                              __func__, ele_1->type, result_len);
+                                        ret = WIFI_ERROR_INVALID_ARGS;
+                                        goto error;
+                                    }
+                                } else {
+                                    ALOGE("%s: Unknown element ID, stop parsing the opt data\n");
+                                    break;
+                                }
+                            }
+                        } else {
+                            ALOGE("%s: Unexpected data length! Exit. len %u\n", __func__, result_len);
+                            ret = WIFI_ERROR_INVALID_ARGS;
+                            goto error;
+                        }
+
+                        currentIdx = nextidx;
+                        rttResultsV1[currentIdx] = (wifi_rtt_result *)malloc(data_size);
                         rtt_result_v1_ptr = rttResultsV1[currentIdx];
-                        if (rtt_result_v1_ptr == NULL) {
+                        if (!rtt_result_v1_ptr) {
                             mCompleted = 1;
                             ALOGE("failed to allocate the wifi_result_v1\n");
                             break;
                         }
 
-                        /* Populate first the fixed elements of rtt_results_v1 struct */
-                        memcpy(rtt_result_v1_ptr, it2.get_data(), it2.get_len());
+                        /* Copy the entire RTT result including optional data */
+                        memcpy(rtt_result_v1_ptr, data, data_size);
 
-                        /* handle the optional data */
-                        result_len -= RTT_RESULT_V1_SIZE;
-                        if (result_len > 0) {
-                            dot11_rm_ie_t *ele_1 = NULL;
-                            dot11_rm_ie_t *ele_2 = NULL;
-                            /* The result has LCI or LCR element */
-                            ele_1 = (dot11_rm_ie_t *)(rtt_result_v1_ptr + 1);
+                        /* Handle optional LCI/LCR elements */
+                        size_t remaining = data_size - RTT_RESULT_V1_SIZE;
+                        if (remaining > 0) {
+                            ele_1 = (dot11_rm_ie_t *)((char *)rtt_result_v1_ptr + RTT_RESULT_V1_SIZE);
+                            dot11_rm_ie_t *ele_2 = nullptr;
+
                             if (ele_1->id == DOT11_MNG_MEASURE_REPORT_ID) {
+                                size_t ie1_size = ele_1->len + DOT11_HDR_LEN;
                                 if (ele_1->type == DOT11_MEASURE_TYPE_LCI) {
                                     rtt_result_v1_ptr->LCI = (wifi_information_element *)ele_1;
-                                    result_len -= (ele_1->len + DOT11_HDR_LEN);
-                                    opt_result_size += (ele_1->len + DOT11_HDR_LEN);
-                                    /* get a next rm ie */
-                                    if (result_len > 0) {
-                                        ele_2 = (dot11_rm_ie_t *)((char *)ele_1 +
-                                            (ele_1->len + DOT11_HDR_LEN));
+                                    remaining -= ie1_size;
+                                    opt_result_size += ie1_size;
+
+                                    if (remaining > 0) {
+                                        ele_2 = (dot11_rm_ie_t *)((char *)ele_1 + ie1_size);
                                         if ((ele_2->id == DOT11_MNG_MEASURE_REPORT_ID) &&
-                                                (ele_2->type == DOT11_MEASURE_TYPE_CIVICLOC)) {
+                                            (ele_2->type == DOT11_MEASURE_TYPE_CIVICLOC)) {
                                             rtt_result_v1_ptr->LCR = (wifi_information_element *)ele_2;
+                                            opt_result_size += ele_2->len + DOT11_HDR_LEN;
                                         }
                                     }
                                 } else if (ele_1->type == DOT11_MEASURE_TYPE_CIVICLOC) {
                                     rtt_result_v1_ptr->LCR = (wifi_information_element *)ele_1;
-                                    result_len -= (ele_1->len + DOT11_HDR_LEN);
-                                    opt_result_size += (ele_1->len + DOT11_HDR_LEN);
-                                    /* get a next rm ie */
-                                    if (result_len > 0) {
-                                        ele_2 = (dot11_rm_ie_t *)((char *)ele_1 +
-                                                (ele_1->len + DOT11_HDR_LEN));
+                                    remaining -= ie1_size;
+                                    opt_result_size += ie1_size;
+
+                                    if (remaining > 0) {
+                                        ele_2 = (dot11_rm_ie_t *)((char *)ele_1 + ie1_size);
                                         if ((ele_2->id == DOT11_MNG_MEASURE_REPORT_ID) &&
-                                                (ele_2->type == DOT11_MEASURE_TYPE_LCI)) {
+                                            (ele_2->type == DOT11_MEASURE_TYPE_LCI)) {
                                             rtt_result_v1_ptr->LCI = (wifi_information_element *)ele_2;
+                                            opt_result_size += ele_2->len + DOT11_HDR_LEN;
                                         }
                                     }
                                 }
                             }
                         }
 
-                        /* Alloc struct v4 including nested rtt result elements including opt data */
-                        rttResultsV4[currentIdx] =
-                                (wifi_rtt_result_v4 *)malloc(RTT_RESULT_V4_SIZE + opt_result_size);
+                        /* Allocate and populate v4 struct including optional data */
+                        rttResultsV4[currentIdx] = (wifi_rtt_result_v4 *)malloc(RTT_RESULT_V4_SIZE + opt_result_size);
                         rtt_result_v4_ptr = rttResultsV4[currentIdx];
-                        if (rtt_result_v4_ptr == NULL) {
+                        if (!rtt_result_v4_ptr) {
                             ALOGE("failed to allocate the rtt_result v4\n");
                             break;
                         }
 
                         rtt_result_v3_ptr = &rtt_result_v4_ptr->rtt_result_v3;
-                        if (rtt_result_v3_ptr == NULL) {
-                            ALOGE("failed to allocate the rtt_result v3\n");
-                            break;
-                        }
-
                         rtt_result_v2_ptr = &rtt_result_v3_ptr->rtt_result;
-                        if (rtt_result_v2_ptr == NULL) {
-                            ALOGE("failed to allocate the rtt_result v2\n");
-                            break;
-                        }
 
-                        /* Populate the v2 result struct as per the v1 result struct elements */
-                        memcpy(&rtt_result_v2_ptr->rtt_result, (wifi_rtt_result *)rtt_result_v1_ptr,
-                                RTT_RESULT_V1_SIZE + opt_result_size);
+                        /* Copy v1 data into v2 */
+                        memcpy(&rtt_result_v2_ptr->rtt_result, rtt_result_v1_ptr, RTT_RESULT_V1_SIZE + opt_result_size);
 
                         if (!channel) {
                             rtt_result_v2_ptr->frequency = UNSPECIFIED;
                         }
 
                         totalCnt++;
-                        nextidx = currentIdx;
-                        nextidx++;
+                        nextidx = currentIdx + 1;
                     }
                 }
             }
@@ -1035,13 +1073,13 @@ public:
             unregisterVendorHandler(GOOGLE_OUI, RTT_EVENT_COMPLETE);
             {
                 if (*rttHandlerV4.on_rtt_results_v4) {
-#ifdef HAL_DEBUG
-                    ALOGI("Current Id: %d: retrieved rtt_resultv4 :\n"
+                    RTT_DEBUG(("Current Id: %d: retrieved rtt_resultv4 :\n"
                             " burst_num : %d, measurement_number : %d,\n"
                             " success_number : %d, number_per_burst_peer : %d, status : %s,\n"
-                            " retry_after_duration : %d rssi : %d dbm,\n"
-                            " rx_rate : %d Kbps, rtt : %lu pss, rtt_sd : %lu ps,\n"
-                            " distance : %d mm, burst_duration : %d ms, freq : %d,\n"
+                            " retry_after_duration : %d type : %d rssi : %d dbm, rssi_spread : %d dbm,\n"
+                            " tx_rate : %d Kbps, rx_rate : %d Kbps, rtt : %lu pss, rtt_sd : %lu ps,\n"
+                            " rtt_spread : %lu ps, distance : %d mm, distance_sd_mm : %d mm, distance_spread_mm : %d mm,"
+                            " timestamp : %lu, burst_duration : %d ms, freq : %d,\n"
                             " packet_bw : %d, negotiated_burst_num : %d\n",
                             currentIdx,
                             rttResultsV4[currentIdx]->rtt_result_v3.rtt_result.rtt_result.burst_num,
@@ -1050,22 +1088,28 @@ public:
                             rttResultsV4[currentIdx]->rtt_result_v3.rtt_result.rtt_result.number_per_burst_peer,
                             get_err_info(rttResultsV4[currentIdx]->rtt_result_v3.rtt_result.rtt_result.status),
                             rttResultsV4[currentIdx]->rtt_result_v3.rtt_result.rtt_result.retry_after_duration,
+                            rttResultsV4[currentIdx]->rtt_result_v3.rtt_result.rtt_result.type,
                             rttResultsV4[currentIdx]->rtt_result_v3.rtt_result.rtt_result.rssi,
+                            rttResultsV4[currentIdx]->rtt_result_v3.rtt_result.rtt_result.rssi_spread,
+                            rttResultsV4[currentIdx]->rtt_result_v3.rtt_result.rtt_result.tx_rate.bitrate * 100,
                             rttResultsV4[currentIdx]->rtt_result_v3.rtt_result.rtt_result.rx_rate.bitrate * 100,
                             (unsigned long)rttResultsV4[currentIdx]->rtt_result_v3.rtt_result.rtt_result.rtt,
                             (unsigned long)rttResultsV4[currentIdx]->rtt_result_v3.rtt_result.rtt_result.rtt_sd,
+                            (unsigned long)rttResultsV4[currentIdx]->rtt_result_v3.rtt_result.rtt_result.rtt_spread,
                             rttResultsV4[currentIdx]->rtt_result_v3.rtt_result.rtt_result.distance_mm,
+                            rttResultsV4[currentIdx]->rtt_result_v3.rtt_result.rtt_result.distance_sd_mm,
+                            rttResultsV4[currentIdx]->rtt_result_v3.rtt_result.rtt_result.distance_spread_mm,
+                            rttResultsV4[currentIdx]->rtt_result_v3.rtt_result.rtt_result.ts,
                             rttResultsV4[currentIdx]->rtt_result_v3.rtt_result.rtt_result.burst_duration,
                             rttResultsV4[currentIdx]->rtt_result_v3.rtt_result.frequency,
                             rttResultsV4[currentIdx]->rtt_result_v3.rtt_result.packet_bw,
-                            rttResultsV4[currentIdx]->rtt_result_v3.rtt_result.rtt_result.negotiated_burst_num);
-                    ALOGE("is_ranging_protection_enabled == %d",
-                           rttResultsV4[currentIdx]->is_ranging_protection_enabled);
-                    ALOGE("is_secure_he_ltf_enabled == %d",
-                           rttResultsV4[currentIdx]->is_secure_he_ltf_enabled);
-                    ALOGE("base_akm == %d", rttResultsV4[currentIdx]->base_akm);
-                    ALOGE("cipher_suite == %d", rttResultsV4[currentIdx]->cipher_suite);
-#endif /* HAL_DEBUG */
+                            rttResultsV4[currentIdx]->rtt_result_v3.rtt_result.rtt_result.negotiated_burst_num));
+                    RTT_DEBUG(("is_ranging_protection_enabled == %d",
+                           rttResultsV4[currentIdx]->is_ranging_protection_enabled));
+                    RTT_DEBUG(("is_secure_he_ltf_enabled == %d",
+                           rttResultsV4[currentIdx]->is_secure_he_ltf_enabled));
+                    RTT_DEBUG(("base_akm == %d", rttResultsV4[currentIdx]->base_akm));
+                    RTT_DEBUG(("cipher_suite == %d", rttResultsV4[currentIdx]->cipher_suite));
                     (*rttHandlerV4.on_rtt_results_v4)(id(), totalCnt, rttResultsV4);
                 }
             }
@@ -1082,6 +1126,7 @@ public:
             if (cmd)
                 cmd->releaseRef();
         }
+error:
         return NL_SKIP;
     }
 };

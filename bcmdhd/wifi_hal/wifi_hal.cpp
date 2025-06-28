@@ -64,6 +64,7 @@
  */
 
 #define WIFI_HAL_CMD_SOCK_PORT       644
+#define WIFI_HAL_DEBUG_CMD_SOCK_PORT 646
 #define WIFI_HAL_EVENT_SOCK_PORT     645
 #define MAX_VIRTUAL_IFACES           6
 #define WIFI_HAL_EVENT_BUFFER_NOT_AVAILABLE 105
@@ -412,6 +413,7 @@ wifi_error wifi_pre_initialize(void)
     wifi_interface_handle wlan0Handle;
     wifi_error result = WIFI_SUCCESS;
     wifi_handle handle;
+    struct nl_sock *debug_cmd_sock = NULL;
 
     ALOGE("wifi_pre_initialize");
     ALOGE("--- HAL version: %s ---\n", HAL_VERSION);
@@ -444,10 +446,25 @@ wifi_error wifi_pre_initialize(void)
     } else {
         ALOGV("nl_socket_set_buffer_size successful for cmd_sock");
     }
+
+    debug_cmd_sock = wifi_create_nl_socket(WIFI_HAL_DEBUG_CMD_SOCK_PORT);
+    if (debug_cmd_sock == NULL) {
+        ALOGE("Could not create debug_cmd_sock");
+        free(halInfo);
+        return WIFI_ERROR_UNKNOWN;
+    }
+
+    if (nl_socket_set_buffer_size(debug_cmd_sock, (256*1024), 0) < 0) {
+        ALOGE("Could not set size for debug_cmd_sock: %s", strerror(errno));
+    } else {
+        ALOGV("nl_socket_set_buffer_size successful for debug_cmd_sock");
+    }
+
     struct nl_sock *event_sock = wifi_create_nl_socket(WIFI_HAL_EVENT_SOCK_PORT);
     if (event_sock == NULL) {
         ALOGE("Could not create handle");
         nl_socket_free(cmd_sock);
+        nl_socket_free(debug_cmd_sock);
         free(halInfo);
         return WIFI_ERROR_UNKNOWN;
     }
@@ -464,6 +481,7 @@ wifi_error wifi_pre_initialize(void)
     if (cb == NULL) {
         ALOGE("Could not create handle");
         nl_socket_free(cmd_sock);
+        nl_socket_free(debug_cmd_sock);
         nl_socket_free(event_sock);
         free(halInfo);
         return WIFI_ERROR_UNKNOWN;
@@ -475,6 +493,7 @@ wifi_error wifi_pre_initialize(void)
 
     halInfo->cmd_sock = cmd_sock;
     halInfo->event_sock = event_sock;
+    halInfo->debug_cmd_sock = debug_cmd_sock;
     halInfo->clean_up = false;
     halInfo->in_event_loop = false;
 
@@ -490,10 +509,22 @@ wifi_error wifi_pre_initialize(void)
     if (halInfo->nl80211_family_id < 0) {
         ALOGE("Could not resolve nl80211 familty id");
         nl_socket_free(cmd_sock);
+        nl_socket_free(debug_cmd_sock);
         nl_socket_free(event_sock);
         free(halInfo);
         return WIFI_ERROR_UNKNOWN;
     }
+
+    int debug_nl80211_family_id = genl_ctrl_resolve(debug_cmd_sock, "nl80211");
+    if (debug_nl80211_family_id < 0) {
+        ALOGE("Could not resolve nl80211 family id on debug_cmd_sock");
+        nl_socket_free(cmd_sock);
+        nl_socket_free(event_sock);
+        nl_socket_free(debug_cmd_sock);
+        free(halInfo);
+        return WIFI_ERROR_UNKNOWN;
+    }
+    halInfo->debug_nl80211_family_id = debug_nl80211_family_id;
 
     pthread_mutex_init(&halInfo->cb_lock, NULL);
     InitResponseLock();
@@ -503,6 +534,7 @@ wifi_error wifi_pre_initialize(void)
     if (wifi_init_interfaces(handle) != WIFI_SUCCESS) {
         ALOGE("No wifi interface found");
         nl_socket_free(cmd_sock);
+        nl_socket_free(debug_cmd_sock);
         nl_socket_free(event_sock);
         pthread_mutex_destroy(&halInfo->cb_lock);
         free(halInfo);
@@ -515,6 +547,7 @@ wifi_error wifi_pre_initialize(void)
             (wifi_add_membership(handle, "vendor") < 0)) {
         ALOGE("Add membership failed");
         nl_socket_free(cmd_sock);
+        nl_socket_free(debug_cmd_sock);
         nl_socket_free(event_sock);
         pthread_mutex_destroy(&halInfo->cb_lock);
         free(halInfo);
@@ -634,6 +667,12 @@ static void internal_cleaned_up_handler(wifi_handle handle)
         nl_socket_free(info->event_sock);
         info->cmd_sock = NULL;
         info->event_sock = NULL;
+    }
+
+    if (info->debug_cmd_sock != 0) {
+        ALOGI("debug_cmd_sock non null. clean up");
+        nl_socket_free(info->debug_cmd_sock);
+        info->debug_cmd_sock = NULL;
     }
 
     if (info->interfaces) {
