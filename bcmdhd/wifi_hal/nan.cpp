@@ -3754,7 +3754,7 @@ class NanDataPathPrimitive : public WifiCommand
             ALOGD("Ignoring reply with cmd = %d mType = %d len = %d,"
                     " min expected len %d, capa size %d\n",
                     reply.get_cmd(), mType, reply.get_vendor_data_len(),
-                    min_nan_resp_size, sizeof(NanCapabilities));
+                    min_nan_resp_size, static_cast<int>(sizeof(NanCapabilities)));
             return NL_SKIP;
         } else {
             rsp_vndr_data = (nan_hal_resp_t *)reply.get_vendor_data();
@@ -4925,7 +4925,7 @@ class NanMacControl : public WifiCommand
             } else if (attr_type == NAN_ATTRIBUTE_CMD_RESP_DATA) {
                 if (it.get_len() < min_nan_resp_size) {
                     ALOGI("Skip handling cmd resp data !!"
-                        " Min expected len : %ld, it.get_len() = %d\n",
+                        " Min expected len : %d, it.get_len() = %d\n",
                         min_nan_resp_size, it.get_len());
                     return NL_SKIP;
                 } else {

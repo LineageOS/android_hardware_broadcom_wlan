@@ -16,6 +16,7 @@
  * limitations under the License.
  */
 
+#include <inttypes.h>
 #include <stdint.h>
 #include <fcntl.h>
 #include <sys/socket.h>
@@ -115,7 +116,7 @@ public:
         for (nl_iterator it(vendor_data); it.has_next(); it.next()) {
             if (it.get_type() == WIFI_ATTRIBUTE_CACHED_SCAN_BOOT_TIMESTAMP) {
                 timestamp = it.get_u32();
-                ALOGV("Time since boot_ms: %ld\n", timestamp);
+                ALOGV("Time since boot_ms: %" PRId64 "\n", timestamp);
             } else if (it.get_type() == WIFI_ATTRIBUTE_CACHED_SCAN_RESULT_CNT) {
                 valid_entries = min(it.get_u16(), MAX_CACHED_SCAN_RESULT);
                 ALOGV("cached scan result cnt: %d", valid_entries);
