@@ -204,7 +204,8 @@ protected:
                     "min expected len %d, mc_az rtt capa size %d,"
                     "  mc rtt capa size %d\n",
                     reply.get_cmd(), reply.get_vendor_data_len(),
-                    sizeof(rtt_capabilities_mc_az_t), sizeof(rtt_capabilities_t));
+                    static_cast<int>(sizeof(rtt_capabilities_mc_az_t)),
+                    static_cast<int>(sizeof(rtt_capabilities_t)));
             return NL_SKIP;
         }
 
@@ -215,7 +216,8 @@ protected:
 
         ALOGD("Id = %0x, subcmd = %d, len = %d,"
                 " min expected len = %d, max exp len %d\n",
-                id, subcmd, len, sizeof(rtt_capabilities_t), sizeof(rtt_capabilities_mc_az_t));
+                id, subcmd, len, static_cast<int>(sizeof(rtt_capabilities_t)),
+                static_cast<int>(sizeof(rtt_capabilities_mc_az_t)));
 
         memset(&SrcCapabilities, 0, sizeof(SrcCapabilities));
         memset(&mcSrcCapabilities, 0, sizeof(mcSrcCapabilities));
@@ -355,7 +357,7 @@ protected:
         int len = reply.get_vendor_data_len();
 
         ALOGD("Id = %0x, subcmd = %d, len = %d, expected len = %d", id, subcmd, len,
-                sizeof(*mResponderInfo));
+                static_cast<int>(sizeof(*mResponderInfo)));
 
         memcpy(mResponderInfo, data, min(len, (int) sizeof(*mResponderInfo)));
 
@@ -408,7 +410,7 @@ protected:
         int len = reply.get_vendor_data_len();
 
         ALOGD("Id = %0x, subcmd = %d, len = %d, expected len = %d", id, subcmd, len,
-                sizeof(*mResponderInfo));
+                static_cast<int>(sizeof(*mResponderInfo)));
 
         memcpy(mResponderInfo, data, min(len, (int) sizeof(*mResponderInfo)));
 
@@ -984,7 +986,8 @@ public:
                                         goto error;
                                     }
                                 } else {
-                                    ALOGE("%s: Unknown element ID, stop parsing the opt data\n");
+                                    ALOGE("%s: Unknown element ID, stop parsing the opt data\n",
+                                          __func__);
                                     break;
                                 }
                             }

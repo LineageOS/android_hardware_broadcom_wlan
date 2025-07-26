@@ -920,12 +920,13 @@ public:
                 it.next();
                 for (unsigned int i = 0; it.has_next() && i < *mNumRings; it.next()) {
                     if (it.get_type() == LOGGER_ATTRIBUTE_RING_STATUS) {
-                        if (it.get_len() > sizeof(wifi_ring_buffer_status)) {
-                            ALOGE("ring status unexpected len = %d, dest len = %lu",
-                                it.get_len(), sizeof(wifi_ring_buffer_status));
+                        const int status_size = sizeof(wifi_ring_buffer_status);
+                        if (it.get_len() > status_size) {
+                            ALOGE("ring status unexpected len = %d, dest len = %d",
+                                it.get_len(), status_size);
                             return NL_SKIP;
                         } else {
-                            memcpy(status, it.get_data(), sizeof(wifi_ring_buffer_status));
+                            memcpy(status, it.get_data(), status_size);
                             i++;
                             status++;
                         }
@@ -942,7 +943,7 @@ public:
                 void *data = reply.get_vendor_data();
                 int len = reply.get_vendor_data_len();
 
-                ALOGD("len = %d, expected len = %lu", len, sizeof(unsigned int));
+                ALOGD("len = %d, expected len = %d", len, static_cast<int>(sizeof(unsigned int)));
                 memcpy(mSupport, data, sizeof(unsigned int));
                 break;
             }
@@ -976,12 +977,13 @@ public:
                 it.next();
                 for (unsigned int i = 0; it.has_next() && i < *mNumMaps; it.next()) {
                     if (it.get_type() == LOGGER_ATTRIBUTE_BUF_RING_MAP) {
-                        if (it.get_len() > sizeof(wifi_buf_ring_map_entry_t)) {
-                            ALOGE("GET_BUF_RING_MAP: unexpected len = %d, dest len = %lu",
-                                it.get_len(), sizeof(wifi_buf_ring_map_entry_t));
+                        const int entry_size = sizeof(wifi_buf_ring_map_entry_t);
+                        if (it.get_len() > entry_size) {
+                            ALOGE("GET_BUF_RING_MAP: unexpected len = %d, dest len = %d",
+                                it.get_len(), entry_size);
                             return NL_SKIP;
                         } else {
-                            memcpy(map, it.get_data(), sizeof(wifi_buf_ring_map_entry_t));
+                            memcpy(map, it.get_data(), entry_size);
                         }
                         i++;
                         map++;
@@ -1199,12 +1201,13 @@ public:
 
             for (nl_iterator it(vendor_data); it.has_next(); it.next()) {
                 if (it.get_type() == LOGGER_ATTRIBUTE_RING_STATUS) {
-                    if (it.get_len() > sizeof(wifi_ring_buffer_status)) {
-                        ALOGE("SetLogHandler: ring status unexpected len = %d, dest len = %lu",
-                           it.get_len(), sizeof(wifi_ring_buffer_status));
+                    const int status_size = sizeof(wifi_ring_buffer_status);
+                    if (it.get_len() > status_size) {
+                        ALOGE("SetLogHandler: ring status unexpected len = %d, dest len = %d",
+                           it.get_len(), status_size);
                         return NL_SKIP;
                     } else {
-                        memcpy(&status, it.get_data(), sizeof(wifi_ring_buffer_status));
+                        memcpy(&status, it.get_data(), status_size);
                     }
                 } else if (it.get_type() == LOGGER_ATTRIBUTE_RING_DATA) {
                     buffer_size = it.get_len();
@@ -1241,9 +1244,9 @@ public:
                     if (cur_off + sizeof(*entry_hdr) + entry_hdr->entry_size > buffer_size) {
                         ALOGE("SetLogHandler: detected invalid access "
                             "num_entries:%d cur_num:%d buffer_size:%d cur_off:%d "
-                            "hdrsize:%lu entry_size:%d ring_name:%s\n",
+                            "hdrsize:%d entry_size:%d ring_name:%s\n",
                             pack_hdr->num_entries, num_entries, buffer_size, cur_off,
-                            sizeof(*entry_hdr), entry_hdr->entry_size, status.name);
+                            static_cast<int>(sizeof(*entry_hdr)), entry_hdr->entry_size, status.name);
                         return NL_SKIP;
                     }
 
@@ -2078,7 +2081,7 @@ wifi_error wifi_start_ring_dump(wifi_interface_handle iface,
     wifi_ring_buffer_data_handler ring_handle)
 {
     wifi_handle handle = getWifiHandle(iface);
-    DUMP_INFO(("start ring dump, handle = %p, ring_handle = %p", handle, ring_handle));
+    DUMP_INFO(("start ring dump, handle = %p, ring_handle = %p", handle, ring_handle.on_ring_buffer_data));
     wifi_buf_ring_map_entry_t map[DUMP_BUF_ATTR_MAX];
     unsigned int num_maps = DUMP_BUF_ATTR_MAX;
     wifi_error result;
@@ -2090,7 +2093,7 @@ wifi_error wifi_start_ring_dump(wifi_interface_handle iface,
     debug_cmd->releaseRef();
 
     /* Set ringname to corresponding buf attr */
-    DUMP_INFO(("Cached ring_handle: %p for RingDump", ring_handle));
+    DUMP_INFO(("Cached ring_handle: %p for RingDump", ring_handle.on_ring_buffer_data));
     RingDump *cmd = new RingDump(iface, FILE_DUMP_REQUEST_ID, num_maps, map, ring_handle);
     NULL_CHECK_RETURN(cmd, "memory allocation failure", WIFI_ERROR_OUT_OF_MEMORY);
     result = wifi_register_cmd(handle, FILE_DUMP_REQUEST_ID, cmd);
@@ -2435,7 +2438,7 @@ public:
         nlattr *data = request.attr_start(NL80211_ATTR_VENDOR_DATA);
         result = request.put_u32(LOGGER_ATTRIBUTE_PKT_FATE_NUM, mNoReqFates);
         if (result < 0) {
-            ALOGE("Failed to set TxPktFate num result:%d mNoReqFates:%d\n", result, mNoReqFates);
+            ALOGE("Failed to set TxPktFate num result:%d mNoReqFates:%zu\n", result, mNoReqFates);
             return result;
         }
         result = request.put_u64(LOGGER_ATTRIBUTE_PKT_FATE_DATA, (uint64_t)mReportBufs);
@@ -2458,7 +2461,7 @@ public:
         nlattr *data = request.attr_start(NL80211_ATTR_VENDOR_DATA);
         result = request.put_u32(LOGGER_ATTRIBUTE_PKT_FATE_NUM, mNoReqFates);
         if (result < 0) {
-            ALOGE("Failed to set RxPktFate num result:%d mNoReqFates:%d\n", result, mNoReqFates);
+            ALOGE("Failed to set RxPktFate num result:%d mNoReqFates:%zu\n", result, mNoReqFates);
             return result;
         }
         result = request.put_u64(LOGGER_ATTRIBUTE_PKT_FATE_DATA, (uint64_t)mReportBufs);
@@ -2872,7 +2875,7 @@ wifi_error read_ota_file(char* file, char** buffer, uint32_t* size)
     fseek(fp, 0, SEEK_END);
     file_size = ftell(fp);
     if (file_size == -1L) {
-        ALOGI("File [%s] size error not valid");
+        ALOGI("File [%s] size error not valid", file);
         fclose(fp);
         return WIFI_ERROR_NOT_AVAILABLE;
     }

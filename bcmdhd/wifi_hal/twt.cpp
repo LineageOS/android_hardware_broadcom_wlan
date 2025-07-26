@@ -18,6 +18,7 @@
 
 #include <stdint.h>
 #include <fcntl.h>
+#include <inttypes.h>
 #include <sys/socket.h>
 #include <netlink/genl/genl.h>
 #include <netlink/genl/family.h>
@@ -245,12 +246,12 @@ void EventGetAttributeData(u8 sub_event_type, nlattr *vendor_data)
                         break;
                     case TWT_ATTRIBUTE_WAKE_INTERVAL_MICROS:
                         session.wake_interval_micros = it.get_u32();
-                        ALOGI("wake_interval_micros = %d\n",
+                        ALOGI("wake_interval_micros = %" PRIu64 "\n",
                                 session.wake_interval_micros);
                         break;
                     case TWT_ATTRIBUTE_NEG_TYPE:
                         session.negotiation_type = (wifi_twt_negotiation_type)it.get_u8();
-                        ALOGI("neg type = %u\n", session.negotiation_type);
+                        ALOGI("neg type = %u\n", static_cast<uint32_t>(session.negotiation_type));
                         break;
                     case TWT_ATTRIBUTE_IS_TRIGGER_ENABLED:
                         session.is_trigger_enabled = it.get_u8();
@@ -718,7 +719,7 @@ public:
             result = request.put_u32(TWT_ATTRIBUTE_MIN_WAKE_INTERVAL_US,
                     mParams->min_wake_interval_micros);
             if (result < 0) {
-                ALOGE("%s: Failed to fill min_wake_interval_micros = %d, result = %d\n",
+                ALOGE("%s: Failed to fill min_wake_interval_micros = %" PRIu64 ", result = %d\n",
                         __func__, mParams->min_wake_interval_micros, result);
                 return result;
             }
@@ -728,7 +729,7 @@ public:
             result = request.put_u32(TWT_ATTRIBUTE_MAX_WAKE_INTERVAL_US,
                     mParams->max_wake_interval_micros);
             if (result < 0) {
-                ALOGE("%s: Failed to fill max_wake_interval_micros = %d, result = %d\n",
+                ALOGE("%s: Failed to fill max_wake_interval_micros = %" PRIu64 ", result = %d\n",
                         __func__, mParams->max_wake_interval_micros, result);
                 return result;
             }
@@ -790,7 +791,7 @@ public:
             result = request.put_u32(TWT_ATTRIBUTE_MIN_WAKE_INTERVAL_US,
                     mParams->min_wake_interval_micros);
             if (result < 0) {
-                ALOGE("%s: Failed to fill min_wake_interval_micros = %d, result = %d\n",
+                ALOGE("%s: Failed to fill min_wake_interval_micros = %" PRIu64 ", result = %d\n",
                         __func__, mParams->min_wake_interval_micros, result);
                 return result;
             }
@@ -800,7 +801,7 @@ public:
             result = request.put_u32(TWT_ATTRIBUTE_MAX_WAKE_INTERVAL_US,
                     mParams->max_wake_interval_micros);
             if (result < 0) {
-                ALOGE("%s: Failed to fill max_wake_interval_micros = %d, result = %d\n",
+                ALOGE("%s: Failed to fill max_wake_interval_micros = %" PRIu64 ", result = %d\n",
                         __func__, mParams->max_wake_interval_micros, result);
                 return result;
             }

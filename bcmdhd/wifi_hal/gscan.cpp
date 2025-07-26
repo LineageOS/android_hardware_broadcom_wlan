@@ -16,6 +16,7 @@
  * limitations under the License.
  */
 
+#include <inttypes.h>
 #include <stdint.h>
 #include <fcntl.h>
 #include <sys/socket.h>
@@ -771,9 +772,9 @@ int wifi_handle_full_scan_event(
     wifi_scan_result *full_scan_result;
     wifi_gscan_result_t *fixed = &drv_res->fixed;
 
-    if ((ie_len + offsetof(wifi_gscan_full_result_t, ie_data)) > len) {
-        ALOGE("BAD event data, len %d ie_len %d fixed length %lu!\n", len,
-            ie_len, offsetof(wifi_gscan_full_result_t, ie_data));
+    const int ie_data_offset = offsetof(wifi_gscan_full_result_t, ie_data);
+    if ((ie_len + ie_data_offset) > len) {
+        ALOGE("BAD event data, len %d ie_len %d fixed length %d!\n", len, ie_len, ie_data_offset);
         return NL_SKIP;
     }
     full_scan_result = (wifi_scan_result *) malloc((ie_len + offsetof(wifi_scan_result, ie_data)));
@@ -787,7 +788,7 @@ int wifi_handle_full_scan_event(
     if(handler.on_full_scan_result)
         handler.on_full_scan_result(id, full_scan_result, drv_res->scan_ch_bucket);
 
-    ALOGV("Full scan result: %-32s %02x:%02x:%02x:%02x:%02x:%02x %d %d %ld %lx %lx %x %d\n",
+    ALOGV("Full scan result: %-32s %02x:%02x:%02x:%02x:%02x:%02x %d %d %" PRIu64 " %" PRIx64 " %" PRIx64 " %x %d\n",
         fixed->ssid, fixed->bssid[0], fixed->bssid[1], fixed->bssid[2], fixed->bssid[3],
         fixed->bssid[4], fixed->bssid[5], fixed->rssi, fixed->channel, fixed->ts,
         fixed->rtt, fixed->rtt_sd, drv_res->scan_ch_bucket, drv_res->ie_length);
@@ -1964,17 +1965,18 @@ public:
 
         wifi_gscan_full_result_t *drv_res = (wifi_gscan_full_result_t *)event.get_vendor_data();
         /* To protect against corrupted data, put a ceiling */
+        const int ie_data_offset = offsetof(wifi_gscan_full_result_t, ie_data);
         int ie_len = min(MAX_PROBE_RESP_IE_LEN, drv_res->ie_length);
-        if ((ie_len + offsetof(wifi_gscan_full_result_t, ie_data)) > len) {
-            ALOGE("BAD event data, len %d ie_len %d fixed length %lu!\n", len,
-                ie_len, offsetof(wifi_gscan_full_result_t, ie_data));
+        if ((ie_len + ie_data_offset) > len) {
+            ALOGE("BAD event data, len %d ie_len %d fixed length %d!\n", len,
+                ie_len, ie_data_offset);
             return NL_SKIP;
         }
 
         wifi_gscan_result_t *fixed = &drv_res->fixed;
         convert_to_hal_result(mResult, fixed);
 
-        byte *anqp = (byte *)drv_res + offsetof(wifi_gscan_full_result_t, ie_data) + drv_res->ie_length;
+        byte *anqp = (byte *)drv_res + ie_data_offset + drv_res->ie_length;
         wifi_anqp_gas_resp *gas = (wifi_anqp_gas_resp *)anqp;
         int anqp_len = offsetof(wifi_anqp_gas_resp, data) + gas->data_len;
         int networkId = *(int *)((byte *)anqp + anqp_len);
