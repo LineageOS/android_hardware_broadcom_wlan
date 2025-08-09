@@ -363,7 +363,7 @@ private:
                 goto exit;
             }
 
-            ALOGI("index: %d per_rate_size %d, data_rem_len %d\n",
+            ALOGV("index: %d per_rate_size %d, data_rem_len %d\n",
                    k, per_rate_size, *data_rem_len);
             memcpy(*outbuf, data_ptr, per_rate_size);
             *data_rem_len -= per_rate_size;
