@@ -2861,6 +2861,10 @@ class NanDiscEnginePrimitive : public WifiCommand
                 SET_NAN_PAIRING_CAP(h_info, dest->is_pairing_supported);
                 ALOGI("Capabilities Cached pairing %d suspend %d\n", GET_NAN_PAIRING_CAP(h_info),
                         GET_NAN_SUSPEND_CAP(h_info));
+                if (!id()) {
+                    ALOGE("Skip to send the nan cap cmd response, id() %d\n", id());
+                    return NL_SKIP;
+                }
             }
         }
 
