@@ -1155,6 +1155,11 @@ class NanPairingPrimitive : public WifiCommand
             ALOGE("%s: Failed to fill comeback delay, result = %d\n", __func__, result);
             return result;
         }
+        result = request.put_u16(NAN_ATTRIBUTE_BS_METHODS, mParams->response_bootstrapping_method);
+        if (result < 0) {
+            ALOGE("%s: Failed to fill Supported BS methods, result = %d\n", __func__, result);
+            return result;
+        }
 
         request.attr_end(data);
         NAN_DBG_EXIT();
