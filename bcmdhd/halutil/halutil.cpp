@@ -6508,6 +6508,7 @@ void printUsage() {
            "      [-cookie <cookie info>] [-info <svc info>] [-sdea_info <sdea svc info>]\n");
     printf(" -nan [-bs_resp] -dest_id <peer inst id> -lcl_id <local inst id> -peer_addr <macaddr>\n"
            "      [-rsp_code <0-ACCEPT, 1-REJECT, 2- COMEBACK>] [-comeback_delay]\n"
+           "      [-bs_methods <supported bootstrapping methods>]\n"
            "      [-cookie <cookie info>] [-info <svc info>] [-sdea_info <sdea svc info>]\n");
     printf(" -dscp [-set] [-s <start>] [-e <end>] [-ac <access_category>]\n");
     printf(" -dscp [-reset] \n");
@@ -9473,6 +9474,8 @@ void nanBootstrappingResp(int argc, char *argv[])
             msg.rsp_code = (NanBootstrappingResponseCode)atoi(val_p);
         } else if (strcmp(param, "-comeback_delay") == 0) {
             msg.come_back_delay = atoi(val_p);
+        } else if (strcmp(param, "-bs_methods") == 0) {
+            msg.response_bootstrapping_method = atoi(val_p);
         } else if (strcmp(param, "-sdea_info") == 0) {
             if (strlen((const char*)val_p) > NAN_MAX_SDEA_SERVICE_SPECIFIC_INFO_LEN) {
                 printMsg("Invalid SDEA service specific info\n");
@@ -10621,6 +10624,7 @@ int main(int argc, char *argv[]) {
             if (argc < 5) {
                 printf(" -nan [-bs_resp] dest_id <peer inst id> -lcl_id <local inst id> \n"
                    "     -peer_addr <mac addr> -rsp_code <0-ACCEPT, 1-REJECT, 2- COMEBACK>\n"
+                   "     -bs_methods <supported bootstrapping methiods>\n"
                    "     [-comeback_delay] [-cookie <cookie info>] [-info <svc info>] \n"
                    "     [-sdea_info <sdea svcinfo>]\n");
                 printMsg("\n Mandatory fields are not present\n");
