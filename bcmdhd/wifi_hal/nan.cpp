@@ -322,7 +322,9 @@ typedef enum {
     NAN_ATTRIBUTE_LOCAL_NIK                         = 245,
     NAN_ATTRIBUTE_ENAB_PAIRING_SETUP                = 246,
     NAN_ATTRIBUTE_ENAB_PAIRING_VERIFICATION         = 247,
-    NAN_ATTRIBUTE_KEY_DATA_PASSPHRASE               = 248
+    NAN_ATTRIBUTE_KEY_DATA_PASSPHRASE               = 248,
+    NAN_ATTRIBUTE_GTK_CSID                          = 249,
+    NAN_ATTRIBUTE_CSIA_CAPABILITIES                 = 250
 } NAN_ATTRIBUTE;
 
 typedef enum {
@@ -1151,6 +1153,11 @@ class NanPairingPrimitive : public WifiCommand
         result = request.put_u32(NAN_ATTRIBUTE_COME_BACK_DELAY, mParams->come_back_delay);
         if (result < 0) {
             ALOGE("%s: Failed to fill comeback delay, result = %d\n", __func__, result);
+            return result;
+        }
+        result = request.put_u16(NAN_ATTRIBUTE_BS_METHODS, mParams->response_bootstrapping_method);
+        if (result < 0) {
+            ALOGE("%s: Failed to fill Supported BS methods, result = %d\n", __func__, result);
             return result;
         }
 
@@ -2133,6 +2140,24 @@ class NanDiscEnginePrimitive : public WifiCommand
             }
         }
 
+        if (mParams->sdea_params.gtk_protection) {
+            /* By default send value 5, Until framework configures gtk_csid */
+            result = request.put_u8(NAN_ATTRIBUTE_GTK_CSID,
+                    NAN_SEC_ALGO_NCS_GK_CCM_128);
+            if (result < 0) {
+                ALOGE("%s: Failed to fill NAN_ATTRIBUTE_GTK_CSID, result = %d\n",
+                        __func__, result);
+                return result;
+            }
+
+            result = request.put_u8(NAN_ATTRIBUTE_CSIA_CAPABILITIES,
+                    NAN_SEC_CIPHER_SUITE_CAP_ENAB_GTK_IGTK_BIGTK);
+            if (result < 0) {
+                ALOGE("%s: Failed to fill NAN_ATTRIBUTE_CSIA_CAPABILITIES, result = %d\n",
+                        __func__, result);
+                return result;
+            }
+        }
         request.attr_end(data);
 
         ALOGI("Returning successfully\n");
@@ -2594,6 +2619,25 @@ class NanDiscEnginePrimitive : public WifiCommand
             }
         }
 
+        if (mParams->sdea_params.gtk_protection) {
+            /* By default send value 5, Until framework configures gtk_csid */
+            result = request.put_u8(NAN_ATTRIBUTE_GTK_CSID,
+                    NAN_SEC_ALGO_NCS_GK_CCM_128);
+            if (result < 0) {
+                ALOGE("%s: Failed to fill NAN_ATTRIBUTE_GTK_CSID, result = %d\n",
+                        __func__, result);
+                return result;
+            }
+
+            result = request.put_u8(NAN_ATTRIBUTE_CSIA_CAPABILITIES,
+                    NAN_SEC_CIPHER_SUITE_CAP_ENAB_GTK_IGTK_BIGTK);
+            if (result < 0) {
+                ALOGE("%s: Failed to fill NAN_ATTRIBUTE_CSIA_CAPABILITIES, result = %d\n",
+                        __func__, result);
+                return result;
+            }
+        }
+
         request.attr_end(data);
         NAN_DBG_EXIT();
         return WIFI_SUCCESS;
@@ -3013,6 +3057,9 @@ class NanDiscEnginePrimitive : public WifiCommand
                     } else if (attr_type == NAN_ATTRIBUTE_NIRA_NONCE) {
                         memcpy(subscribe_event.nira.nonce, it.get_data(), NAN_IDENTITY_NONCE_LEN);
                         prhex("NIRA nonce", subscribe_event.nira.nonce, NAN_IDENTITY_NONCE_LEN);
+                    } else if (attr_type == NAN_ATTRIBUTE_GTK_CSID) {
+                        ALOGI("Peer gtk protection enabled: %u", !!(it.get_u8()));
+                        subscribe_event.peer_sdea_params.gtk_protection = !!(it.get_u8());
                     }
                 }
 
@@ -3459,6 +3506,27 @@ class NanDataPathPrimitive : public WifiCommand
             }
         }
 
+        if (mParams->gtk_protection) {
+            /* By default send value 5, Until framework configures gtk_csid */
+            result = request.put_u8(NAN_ATTRIBUTE_GTK_CSID,
+                    NAN_SEC_ALGO_NCS_GK_CCM_128);
+            if (result < 0) {
+                ALOGE("%s: Failed to fill NAN_ATTRIBUTE_GTK_CSID, result = %d\n",
+                        __func__, result);
+                return result;
+            }
+
+            if (mParams->csia_capabilities) {
+                result = request.put_u8(NAN_ATTRIBUTE_CSIA_CAPABILITIES,
+                        mParams->csia_capabilities);
+                if (result < 0) {
+                    ALOGE("%s: Failed to fill NAN_ATTRIBUTE_CSIA_CAPABILITIES, result = %d\n",
+                            __func__, result);
+                    return result;
+                }
+            }
+        }
+
         request.attr_end(data);
         return WIFI_SUCCESS;
     }
@@ -3650,6 +3718,27 @@ class NanDataPathPrimitive : public WifiCommand
             }
         }
 
+        if (mParams->gtk_protection) {
+            /* By default send value 5, Until framework configures gtk_csid */
+            result = request.put_u8(NAN_ATTRIBUTE_GTK_CSID,
+                    NAN_SEC_ALGO_NCS_GK_CCM_128);
+            if (result < 0) {
+                ALOGE("%s: Failed to fill NAN_ATTRIBUTE_GTK_CSID, result = %d\n",
+                        __func__, result);
+                return result;
+            }
+
+            if (mParams->csia_capabilities) {
+                result = request.put_u8(NAN_ATTRIBUTE_CSIA_CAPABILITIES,
+                        mParams->csia_capabilities);
+                if (result < 0) {
+                    ALOGE("%s: Failed to fill NAN_ATTRIBUTE_CSIA_CAPABILITIES, result = %d\n",
+                            __func__, result);
+                    return result;
+                }
+            }
+        }
+
         request.attr_end(data);
         return WIFI_SUCCESS;
     }
@@ -3761,7 +3850,7 @@ class NanDataPathPrimitive : public WifiCommand
             reply.get_vendor_data() == NULL ||
                     reply.get_vendor_data_len() < min_nan_resp_size) {
             ALOGD("Ignoring reply with cmd = %d mType = %d len = %d,"
-                    " min expected len %d, capa size %d\n",
+                    " min expected len %d, cap size %d, supported cap size %d\n",
                     reply.get_cmd(), mType, reply.get_vendor_data_len(),
                     min_nan_resp_size, static_cast<int>(sizeof(NanCapabilities)));
             return NL_SKIP;
@@ -3863,6 +3952,12 @@ class NanDataPathPrimitive : public WifiCommand
                         u16 len = min(ndp_request_event.scid_len,
                                 sizeof(ndp_request_event.scid));
                         memcpy(ndp_request_event.scid, it.get_data(), len);
+                    } else if (attr_type == NAN_ATTRIBUTE_GTK_CSID) {
+                        ALOGI("peer gtk_protection: %u\n", !!(it.get_u8()));
+                        ndp_request_event.gtk_protection = !!(it.get_u8());
+                    } else if (attr_type == NAN_ATTRIBUTE_CSIA_CAPABILITIES) {
+                        ALOGI("peer csia_capabilities: %u\n", it.get_u8());
+                        ndp_request_event.csia_capabilities = it.get_u8();
                     }
                 }
 
@@ -5319,6 +5414,8 @@ static const char *NanAttrToString(u16 cmd)
         C2S(NAN_ATTRIBUTE_ENAB_PAIRING_SETUP)
         C2S(NAN_ATTRIBUTE_ENAB_PAIRING_VERIFICATION)
         C2S(NAN_ATTRIBUTE_BS_METHODS)
+        C2S(NAN_ATTRIBUTE_GTK_CSID)
+        C2S(NAN_ATTRIBUTE_CSIA_CAPABILITIES)
 
         default:
             return "NAN_ATTRIBUTE_UNKNOWN";
@@ -5718,6 +5815,7 @@ static int dump_NanPublishRequest(NanPublishRequest* msg)
     ALOGI("enable_pairing_cache=%u\n", msg->nan_pairing_config.enable_pairing_cache);
     ALOGI("Supported BS methods=%u\n", msg->nan_pairing_config.supported_bootstrapping_methods);
     prhex("NIK:", msg->nan_identity_key, NAN_IDENTITY_KEY_LEN);
+    ALOGI("gtk_protection = %d\n", msg->sdea_params.gtk_protection);
     return WIFI_SUCCESS;
 }
 
@@ -5806,7 +5904,7 @@ static int dump_NanSubscribeRequest(NanSubscribeRequest* msg)
     ALOGI("enable_pairing_cache=%u\n", msg->nan_pairing_config.enable_pairing_cache);
     ALOGI("Supported BS methods=%u\n", msg->nan_pairing_config.supported_bootstrapping_methods);
     prhex("NIK:", msg->nan_identity_key, NAN_IDENTITY_KEY_LEN);
-
+    ALOGI("gtk_protection= %d\n", msg->sdea_params.gtk_protection);
     return WIFI_SUCCESS;
 }
 
@@ -5877,6 +5975,8 @@ static int dump_NanDataPathInitiatorRequest(NanDataPathInitiatorRequest* msg)
             ALOGI("service_name=%s\n", msg->service_name);
         }
     }
+    ALOGI("gtk_protection = %d\n", msg->gtk_protection);
+    ALOGI("csia_capabilities = %u\n", msg->csia_capabilities);
     return WIFI_SUCCESS;
 }
 
@@ -5910,6 +6010,8 @@ static int dump_NanDataPathIndicationResponse(NanDataPathIndicationResponse* msg
             ALOGI("service_name=%s\n", msg->service_name);
         }
     }
+    ALOGI("gtk_protection = %d\n", msg->gtk_protection);
+    ALOGI("csia_capabilities = %u\n", msg->csia_capabilities);
     return WIFI_SUCCESS;
 }
 
@@ -6844,6 +6946,9 @@ class NanEventCap : public WifiCommand
                             memcpy(subscribe_event.nira.nonce, it.get_data(),
                                     NAN_IDENTITY_NONCE_LEN);
                             prhex("NIRA nonce", subscribe_event.nira.nonce, NAN_IDENTITY_NONCE_LEN);
+                        } else if (attr_type == NAN_ATTRIBUTE_GTK_CSID) {
+                            ALOGI("Peer gtk protection enabled: %u\n", !!(it.get_u8()));
+                            subscribe_event.peer_sdea_params.gtk_protection = !!(it.get_u8());
                         }
                     }
 
@@ -7000,7 +7105,13 @@ class NanEventCap : public WifiCommand
 
                         } else if (attr_type == NAN_ATTRIBUTE_SCID) {
                             memcpy(ndp_request_event.scid, it.get_data(),
-                                ndp_request_event.scid_len);
+                                    ndp_request_event.scid_len);
+                        } else if (attr_type == NAN_ATTRIBUTE_GTK_CSID) {
+                            ALOGI("peer gtk_protection: %u\n", !!(it.get_u8()));
+                            ndp_request_event.gtk_protection = !!(it.get_u8());
+                        } else if (attr_type == NAN_ATTRIBUTE_CSIA_CAPABILITIES) {
+                            ALOGI("peer csia_capabilities: %u\n", it.get_u8());
+                            ndp_request_event.csia_capabilities = it.get_u8();
                         }
                     }
 

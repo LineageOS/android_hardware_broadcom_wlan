@@ -6435,7 +6435,8 @@ void printUsage() {
             "    [-suspendable <0/1>] [-nik <local nik of 16 chars>]\n"
             "    [-bs_methods <supported bootstrapping methods>] \n"
             "    [-pairing_setup <supported 0/1>] [-pairing_cache <supported 0/1]"
-            "    [-pairing_verification <supported 0/1>] \n");
+            "    [-pairing_verification <supported 0/1>] \n"
+            "    [-gtk_protection <Supported 0/1>] \n");
     printf(" -nan [-subscribe] [-svc <svc_name>] [-info <svc info>]\n"
             "    [-sub_type <0/1>] [-sub_count <val>] [-pub_ssi <0/1>]\n"
             "    [-ttl <val>] [-svc_awake_dw <val>] [-match_ind <0/1/2>]\n"
@@ -6453,7 +6454,8 @@ void printUsage() {
             "    [-suspendable <0/1>] [-nik <local nik of 16 chars>]\n"
             "    [-bs_methods <supported bootstrapping methods>] \n"
             "    [-pairing_setup <supported 0/1>] [-pairing_cache <supported 0/1]"
-            "    [-pairing_verification <supported 0/1>] \n");
+            "    [-pairing_verification <supported 0/1>] \n"
+            "    [-gtk_protection <Supported 0/1>] \n");
     printf(" -nan [-cancel_pub <publish id>]\n");
     printf(" -nan [-cancel_sub <subscribe id>\n");
     printf(" -nan [-transmit] [-src_id <instance id>] [-dest_id <instance id>]\n"
@@ -6470,14 +6472,18 @@ void printUsage() {
             "    [-passphrase <Passphrase value, len must not be less than 8 or greater than 63>]\n"
             "    [-csid <cipher suite type 0/1/2/4/8>] [-key_type <1 or 2>]"
             "    [-pmk <PMK value>] [-svc <svc_name>]\n"
-            "    [-lcl_svc_id <local service id>] \n");
+            "    [-lcl_svc_id <local service id>] \n"
+            "    [-csia_cap < value>] \n"
+            "    [-gtk_protection <Supported 0/1>] \n");
     printf(" -nan [-resp] [-ndp_id <NDP id>] [-iface <NDP iface name>]\n"
             "    [-resp_code <accept = 0, reject = 1>] [-qos <qos>]  [-key_type <1 or 2>] \n"
             "    [-info <seq of values in the frame body>] "
             "    [-passphrase <Passphrase value, len must not be less than 8 or greater than 63>]\n"
             "    [-csid <cipher suite type 0/1/2/4/8>]"
             "    [-key_type <1 or 2>] [-pmk <PMK value>] [-svc <svc_name>]\n"
-            "    [-lcl_svc_id <local service id>] \n");
+            "    [-lcl_svc_id <local service id>] \n"
+            "    [-csia_cap < value>] \n"
+            "    [-gtk_protection <Supported 0/1>] \n");
     printf(" -nan [-end] [-inst_count <count>] [-inst_id <NDP id>\n");
     printf(" -nan [-up] [-iface <iface name>] [-ip <ip>]\n");
     printf(" -nan [-addr]\n");
@@ -6653,6 +6659,8 @@ void OnNanNotifyResponse(transaction_id id, NanResponseMsg* rsp_data) {
             rsp_data->body.nan_capabilities.max_total_match_filter_len);
         printMsg("max_service_specific_info_len = %d\n",
             rsp_data->body.nan_capabilities.max_service_specific_info_len);
+        printMsg("max_vsa_data_len = %d\n", rsp_data->body.nan_capabilities.max_vsa_data_len);
+        printMsg("max_mesh_data_len = %d\n", rsp_data->body.nan_capabilities.max_mesh_data_len);
         printMsg("max_ndi_interfaces = %d\n",
             rsp_data->body.nan_capabilities.max_ndi_interfaces);
         printMsg("max_ndp_sessions = %d\n",
@@ -6661,18 +6669,38 @@ void OnNanNotifyResponse(transaction_id id, NanResponseMsg* rsp_data) {
             rsp_data->body.nan_capabilities.max_app_info_len);
         printMsg("max_queued_transmit_followup_msgs = %d\n",
             rsp_data->body.nan_capabilities.max_queued_transmit_followup_msgs);
-        printMsg("max_Subscribe_Interface_Addresses = %d\n",
-            rsp_data->body.nan_capabilities.max_subscribe_address);
+        printMsg("ndp_supported_bands = %d\n",
+            rsp_data->body.nan_capabilities.ndp_supported_bands);
         printMsg("supported_CipherSuites = %d\n",
             rsp_data->body.nan_capabilities.cipher_suites_supported);
+        printMsg("max_scid_len = %d\n",
+            rsp_data->body.nan_capabilities.max_scid_len);
+        printMsg("is_ndp_security_supported = %d\n",
+            rsp_data->body.nan_capabilities.is_ndp_security_supported);
         printMsg("max_Extended_ServiceSpecific_Info_Len = %d\n",
             rsp_data->body.nan_capabilities.max_sdea_service_specific_info_len);
+        printMsg("max_Subscribe_Interface_Addresses = %d\n",
+            rsp_data->body.nan_capabilities.max_subscribe_address);
         printMsg("ndpe_attr_supported = %d\n",
             rsp_data->body.nan_capabilities.ndpe_attr_supported);
-        printMsg("suspension_supported = %d\n",
-            rsp_data->body.nan_capabilities.is_suspension_supported);
+        printMsg("is_instant_mode_supported = %d\n",
+            rsp_data->body.nan_capabilities.is_instant_mode_supported);
+        printMsg("is_6g_supported = %d\n",
+            rsp_data->body.nan_capabilities.is_6g_supported);
+        printMsg("is_he_supported = %d\n",
+            rsp_data->body.nan_capabilities.is_he_supported);
         printMsg("pairing_supported = %d\n",
             rsp_data->body.nan_capabilities.is_pairing_supported);
+        printMsg("is_set_cluster_id_supported = %d\n",
+            rsp_data->body.nan_capabilities.is_set_cluster_id_supported);
+        printMsg("suspension_supported = %d\n",
+            rsp_data->body.nan_capabilities.is_suspension_supported);
+        printMsg("is_periodic_ranging_supported = %d\n",
+            rsp_data->body.nan_capabilities.is_periodic_ranging_supported);
+        printMsg("supported_bw = %d\n",
+            rsp_data->body.nan_capabilities.supported_bw);
+        printMsg("num_rx_chains_supported = %d\n",
+            rsp_data->body.nan_capabilities.num_rx_chains_supported);
         break;
     default:
         printMsg("Unknown Response Received, %d\n",
@@ -6735,6 +6763,7 @@ void OnNanEventMatch (NanMatchInd* event) {
         event->peer_pairing_config.supported_bootstrapping_methods);
     prhex_msg("NIRA nonce", event->nira.nonce, NAN_IDENTITY_NONCE_LEN);
     prhex_msg("NIRA tag", event->nira.tag, NAN_IDENTITY_TAG_LEN);
+    printMsg("gtk_protection %d\n", event->peer_sdea_params.gtk_protection);
     /* Event enabled is not available in android-m */
     putEventInCache(EVENT_TYPE_SUBSCRIBE_MATCHED,
         "SubscribeMatched");
@@ -6825,6 +6854,8 @@ void OnNanEventDataIndication (NanDataPathRequestInd* event) {
             event->app_info.ndp_app_info,
             event->app_info.ndp_app_info_len);
     }
+    printMsg("csia_capabilities = %d\n", event->csia_capabilities);
+    printMsg("gtk_protection = %d\n", event->gtk_protection);
     putEventInCache(EVENT_TYPE_NAN_DATA_REQUEST_INDICATION,
         "NanDataEventIndication");
 }
@@ -8339,6 +8370,8 @@ void publishNan(int argc, char *argv[]) {
             msg.nan_pairing_config.enable_pairing_cache = atoi(val_p);
         } else if (strcmp(param, "-pairing_verification") == 0) {
             msg.nan_pairing_config.enable_pairing_verification = atoi(val_p);
+        } else if (strcmp(param, "-gtk_protection") == 0) {
+            msg.sdea_params.gtk_protection = atoi(val_p);
         } else {
             printMsg("%s:Unsupported Parameter for Nan Publish\n", __FUNCTION__);
             goto exit;
@@ -8741,6 +8774,8 @@ void subscribeNan(int argc, char *argv[]) {
             msg.nan_pairing_config.enable_pairing_cache = atoi(val_p);
         } else if (strcmp(param, "-pairing_verification") == 0) {
             msg.nan_pairing_config.enable_pairing_verification = atoi(val_p);
+        } else if (strcmp(param, "-gtk_protection") == 0) {
+            msg.sdea_params.gtk_protection = atoi(val_p);
         } else {
             printMsg("%s:Unsupported Parameter for Nan Subscribe\n", __FUNCTION__);
             goto exit;
@@ -9800,6 +9835,10 @@ void nanDataInitRequest(int argc, char *argv[]) {
             }
         } else if (strcmp(param, "-lcl_svc_id") == 0) {
             msg.publish_subscribe_id = atoi(val_p);
+        } else if (strcmp(param, "-gtk_protection") == 0) {
+            msg.gtk_protection = atoi(val_p);
+        } else if (strcmp(param, "-csia_cap") == 0) {
+            msg.csia_capabilities = atoi(val_p);
         } else {
             printMsg("%s:Unsupported Parameter for Nan Data Path Request\n", __FUNCTION__);
             goto exit;
@@ -10001,8 +10040,12 @@ void nanDataIndResponse(int argc, char *argv[]) {
             }
         } else if (strcmp(param, "-lcl_svc_id") == 0) {
             msg.publish_subscribe_id = atoi(val_p);
+        } else if (strcmp(param, "-gtk_protection") == 0) {
+            msg.gtk_protection = atoi(val_p);
+        } else if (strcmp(param, "-csia_cap") == 0) {
+            msg.csia_capabilities = atoi(val_p);
         } else {
-            printMsg("%s:Unsupported Parameter for Nan Data Path Request\n", __FUNCTION__);
+            printMsg("%s:Unsupported Parameter for Nan Data Path Response\n", __FUNCTION__);
             goto exit;
         }
     }
@@ -10414,7 +10457,8 @@ int main(int argc, char *argv[]) {
                     "    [-recv_flag <0 to 15>] [-suspendable <0/1>] \n"
                     "    [-bs_methods <supported bootstrapping methods]>\n"
                     "    [-pairing_setup <supported 0/1>] [-pairing_cache <supported 0/1]"
-                    "    [-pairing_verification <supported 0/1>] [-nik <local nik of 16 char>]\n");
+                    "    [-pairing_verification <supported 0/1>] [-nik <local nik of 16 char>]\n"
+                    "    [-gtk_protection <true or false>] \n");
                 printMsg("\n *Set/Enable corresponding bits to disable any"
                     "    indications that follow a publish"
                     "\n *BIT0 - Disable publish termination indication."
@@ -10443,7 +10487,8 @@ int main(int argc, char *argv[]) {
                     "    [-recv_flag <0 to 7>] [-suspendable <0/1>] \n"
                     "    [-bs_methods <supported bootstrapping methods]>\n"
                     "    [-pairing_setup <supported 0/1>] [-pairing_cache <supported 0/1]"
-                    "    [-pairing_verification <supported 0/1>]  [-nik <local nik of 16 char>]\n");
+                    "    [-pairing_verification <supported 0/1>]  [-nik <local nik of 16 char>]\n"
+                    "    [-gtk_protection <true or false>] \n");
                 printMsg("\n *Set/Enable corresponding bits to disable any indications that"
                     "    follow a publish"
                     "\n *BIT0 - Disable publish termination indication."
@@ -10495,8 +10540,10 @@ int main(int argc, char *argv[]) {
                     "    [-chan <channel in mhz>] [-iface <iface>] [-sec <security>]\n"
                     "    [-qos <qos>] [-info <seq of values in the frame body>]\n"
                     "    [-csid <cipher suite type 0/1/2/4/8>]\n"
-                    "    [-scid <scid value>] [-svc <svc_name>] [-lcl_svc_id <service id>] \n");
-                goto cleanup;
+                    "    [-scid <scid value>] [-svc <svc_name>] [-lcl_svc_id <service id>] \n"
+                    "    [-csia_cap < value>] \n"
+                    "    [-gtk_protection <true or false>] \n");
+                    goto cleanup;
             }
             nanDataInitRequest(argc, argv);
         } else if ((strcmp(argv[2], "-resp") == 0)) {
@@ -10506,7 +10553,9 @@ int main(int argc, char *argv[]) {
                     "    [-resp_code <accept = 0, accept = 1>] [-qos <qos>]\n"
                     "    [-info <seq of values in the frame body>]\n"
                     "    [-csid <cipher suite type 0/1/2/4/8>]\n"
-                    "    [-scid <scid value>] [-svc <svc_name>] [-lcl_svc_id <service id>] \n");
+                    "    [-scid <scid value>] [-svc <svc_name>] [-lcl_svc_id <service id>] \n"
+                    "    [-csia_cap < value>] \n"
+                    "    [-gtk_protection <true or false>] \n");
                 goto cleanup;
             }
             nanDataIndResponse(argc, argv);
