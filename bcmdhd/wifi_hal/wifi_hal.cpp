@@ -2132,7 +2132,7 @@ public:
         }
 
         if ((mScenario <= WIFI_POWER_SCENARIO_INVALID) ||
-           (mScenario >= SAR_CONFIG_SCENARIO_COUNT)) {
+           (mScenario > WIFI_POWER_SCENARIO_ON_BODY_VIDEO_RECORDING)) {
             ALOGE("Unsupported tx power value:%d\n", mScenario);
             return WIFI_ERROR_NOT_SUPPORTED;
         }
