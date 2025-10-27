@@ -6095,6 +6095,7 @@ static int dump_NanBootstrapingIndResponse(NanBootstrappingIndicationResponse* m
     ALOGI("peer_disc_mac_addr=" MACSTR "\n", MAC2STR(msg->peer_disc_mac_addr));
     ALOGI("response_code=%u\n", msg->rsp_code);
     ALOGI("come_back_delay=%u\n", msg->come_back_delay);
+    ALOGI("response_bootstrapping_method=%u\n", msg->response_bootstrapping_method);
     ALOGI("cookie_length=%u\n", msg->cookie_length);
     if (msg->cookie_length) {
         prhex(NULL, msg->cookie, msg->cookie_length);
