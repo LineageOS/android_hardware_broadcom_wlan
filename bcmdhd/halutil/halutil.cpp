@@ -6937,7 +6937,7 @@ void OnNanEventPairingIndication(NanPairingRequestInd* event) {
 void OnNanEventPairingConfirmation(NanPairingConfirmInd* event) {
     printMsg("\n pairing id = %d\n", event->pairing_instance_id);
     printMsg(" rsp_code = %d\n", event->rsp_code);
-    printMsg(" reason = %s\n", event->reason_code);
+    printMsg(" reason = %d\n", event->reason_code);
     printMsg(" request type = %d\n", event->nan_pairing_request_type);
     printMsg(" pairing cache enabled = %d\n", event->enable_pairing_cache);
     prhex_msg(" Peer NIK", event->npk_security_association.peer_nan_identity_key,

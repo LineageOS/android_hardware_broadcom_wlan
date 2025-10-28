@@ -1555,8 +1555,15 @@ class NanPairingPrimitive : public WifiCommand
                 }
 
                 if (!pairing_confirm_event.rsp_code &&
+                        pairing_confirm_event.enable_pairing_cache &&
+                        !pairing_confirm_event.npk_security_association.npk.pmk_len) {
+                    ALOGE("Check invalid params received. pmk_len: %u\n",
+                            pairing_confirm_event.npk_security_association.npk.pmk_len);
+                    goto fail;
+                }
+
+                if (!pairing_confirm_event.rsp_code &&
                         (!pairing_confirm_event.npk_security_association.cipher_type ||
-                        !pairing_confirm_event.npk_security_association.npk.pmk_len ||
                         !pairing_confirm_event.pairing_instance_id)) {
                     ALOGE("Check invalid params received csid: 0x%x pairing_id: %u\n",
                             pairing_confirm_event.npk_security_association.cipher_type,
@@ -7439,10 +7446,19 @@ class NanEventCap : public WifiCommand
                     }
 
                     if (!pairing_confirm_event.rsp_code &&
+                            pairing_confirm_event.enable_pairing_cache &&
+                            !pairing_confirm_event.npk_security_association.npk.pmk_len) {
+                            ALOGE("Check invalid params received. pmk_len: %u\n",
+                            pairing_confirm_event.npk_security_association.npk.pmk_len);
+                        goto fail;
+                    }
+
+                    if (!pairing_confirm_event.rsp_code &&
                             (!pairing_confirm_event.npk_security_association.cipher_type ||
-                            !pairing_confirm_event.npk_security_association.npk.pmk_len ||
                             !pairing_confirm_event.pairing_instance_id)) {
-                        ALOGE("Check invalid params received\n");
+                        ALOGE("Check invalid params received csid: 0x%x pairing_id: %u\n",
+                                pairing_confirm_event.npk_security_association.cipher_type,
+                                pairing_confirm_event.pairing_instance_id);
                         goto fail;
                     }
 
