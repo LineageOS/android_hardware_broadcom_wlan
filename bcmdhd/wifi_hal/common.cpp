@@ -307,6 +307,7 @@ bool get_halutil_mode()
 {
     return halutil_mode;
 }
+#ifdef HAL_DEBUG
 /* pretty hex print a contiguous buffer */
 void prhex(const char *msg, u8 *buf, u32 nbytes)
 {
@@ -346,3 +347,9 @@ void prhex(const char *msg, u8 *buf, u32 nbytes)
         ALOGE("%s\n", line);
     }
 }
+#else
+void prhex(const char *msg, u8 *buf, u32 nbytes)
+{
+    return;
+}
+#endif /* HAL_DEBUG */

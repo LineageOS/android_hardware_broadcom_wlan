@@ -1417,12 +1417,8 @@ class NanPairingPrimitive : public WifiCommand
 
                     } else if (attr_type == NAN_ATTRIBUTE_NIRA_TAG) {
                         memcpy(pairing_request_event.nira.tag, it.get_data(), NAN_IDENTITY_TAG_LEN);
-                        prhex("NIRA tag", pairing_request_event.nira.tag, NAN_IDENTITY_TAG_LEN);
-
                     } else if (attr_type == NAN_ATTRIBUTE_NIRA_NONCE) {
                         memcpy(pairing_request_event.nira.nonce, it.get_data(),
-                                NAN_IDENTITY_NONCE_LEN);
-                        prhex("NIRA nonce", pairing_request_event.nira.nonce,
                                 NAN_IDENTITY_NONCE_LEN);
                     }
 
@@ -1430,9 +1426,7 @@ class NanPairingPrimitive : public WifiCommand
 
                 if (!pairing_request_event.publish_subscribe_id ||
                         !pairing_request_event.pairing_instance_id) {
-                    ALOGE("Check invalid params received pub_sub_id: 0x%x pairing_id: %u\n",
-                            pairing_request_event.publish_subscribe_id,
-                            pairing_request_event.pairing_instance_id);
+                    ALOGE("Check invalid params received\n");
                     goto fail;
                 }
 
@@ -1485,19 +1479,12 @@ class NanPairingPrimitive : public WifiCommand
                     } else if (attr_type == NAN_ATTRIBUTE_PEER_NIK) {
                         memcpy(pairing_confirm_event.npk_security_association.peer_nan_identity_key,
                                 it.get_data(), NAN_IDENTITY_KEY_LEN);
-                        prhex("Peer NIK:",
-                            pairing_confirm_event.npk_security_association.peer_nan_identity_key,
-                            NAN_IDENTITY_KEY_LEN);
 
                     } else if (attr_type == NAN_ATTRIBUTE_LOCAL_NIK) {
                         memcpy(pairing_confirm_event.npk_security_association.local_nan_identity_key,
                                 it.get_data(), NAN_IDENTITY_KEY_LEN);
-                        prhex("Local NIK:",
-                            pairing_confirm_event.npk_security_association.local_nan_identity_key,
-                            NAN_IDENTITY_KEY_LEN);
 
                     } else if (attr_type == NAN_ATTRIBUTE_AKM) {
-                        ALOGI("akm: %u\n", (NanAkm)it.get_u8());
                         pairing_confirm_event.npk_security_association.akm = (NanAkm)it.get_u8();
                         if ((pairing_confirm_event.npk_security_association.akm >
                                 PASN) || (pairing_confirm_event.npk_security_association.akm <
@@ -1518,17 +1505,12 @@ class NanPairingPrimitive : public WifiCommand
                         }
 
                     } else if (attr_type == NAN_ATTRIBUTE_KEY_LEN) {
-                        ALOGI("pmk len: %u\n", it.get_u32());
                         pmk_len = it.get_u32();
                         pairing_confirm_event.npk_security_association.npk.pmk_len = pmk_len;
-
                     } else if (attr_type == NAN_ATTRIBUTE_KEY_DATA) {
                         memcpy(&pairing_confirm_event.npk_security_association.npk.pmk,
                                 it.get_data(),
                                 pairing_confirm_event.npk_security_association.npk.pmk_len);
-                        prhex("NPK", (u8 *)pairing_confirm_event.npk_security_association.npk.pmk,
-                                pairing_confirm_event.npk_security_association.npk.pmk_len);
-
                     }
                 }
 
@@ -1536,9 +1518,8 @@ class NanPairingPrimitive : public WifiCommand
                         (!pairing_confirm_event.npk_security_association.cipher_type ||
                         !pairing_confirm_event.npk_security_association.npk.pmk_len ||
                         !pairing_confirm_event.pairing_instance_id)) {
-                    ALOGE("Check invalid params received csid: 0x%x pmk_len: %u pairing_id: %u\n",
+                    ALOGE("Check invalid params received csid: 0x%x pairing_id: %u\n",
                             pairing_confirm_event.npk_security_association.cipher_type,
-                            pairing_confirm_event.npk_security_association.npk.pmk_len,
                             pairing_confirm_event.pairing_instance_id);
                     goto fail;
                 }
@@ -1996,7 +1977,6 @@ class NanDiscEnginePrimitive : public WifiCommand
                 return result;
             }
 
-            prhex("SCID: ", mParams->scid, mParams->scid_len);
             result = request.put(NAN_ATTRIBUTE_SCID,
                     (void *)mParams->scid, mParams->scid_len);
             if (result < 0) {
@@ -3052,11 +3032,8 @@ class NanDiscEnginePrimitive : public WifiCommand
 
                     } else if (attr_type == NAN_ATTRIBUTE_NIRA_TAG) {
                         memcpy(subscribe_event.nira.tag, it.get_data(), NAN_IDENTITY_TAG_LEN);
-                        prhex("NIRA tag", subscribe_event.nira.tag, NAN_IDENTITY_TAG_LEN);
-
                     } else if (attr_type == NAN_ATTRIBUTE_NIRA_NONCE) {
                         memcpy(subscribe_event.nira.nonce, it.get_data(), NAN_IDENTITY_NONCE_LEN);
-                        prhex("NIRA nonce", subscribe_event.nira.nonce, NAN_IDENTITY_NONCE_LEN);
                     } else if (attr_type == NAN_ATTRIBUTE_GTK_CSID) {
                         ALOGI("Peer gtk protection enabled: %u", !!(it.get_u8()));
                         subscribe_event.peer_sdea_params.gtk_protection = !!(it.get_u8());
@@ -3700,7 +3677,6 @@ class NanDataPathPrimitive : public WifiCommand
                 return result;
             }
 
-            prhex("SCID: ", mParams->scid, mParams->scid_len);
             result = request.put(NAN_ATTRIBUTE_SCID,
                     (void *)mParams->scid, mParams->scid_len);
             if (result < 0) {
@@ -5188,8 +5164,6 @@ class NanMacControl : public WifiCommand
                         ALOGI("Received NAN_ATTRIBUTE_SERVICE_SPECIFIC_INFO\n");
                         u16 len = min(sdfInd.data.frame_len, sizeof(sdfInd.data.frame_data));
                         memcpy(&sdfInd.data.frame_data, it.get_data(), len);
-                        prhex("sdfInd.data.frame_data: ", (u8*)sdfInd.data.frame_data,
-                                sdfInd.data.frame_len);
                     }
                 }
                 GET_NAN_HANDLE(info)->mHandlers.EventBeaconSdfPayload(&sdfInd);
@@ -5553,7 +5527,6 @@ static int get_svc_hash(unsigned char *svc_name,
 
     memcpy(svc_hash, sha_hash, NAN_SVC_HASH_SIZE);
     ALOGI("svc_name: %s\n", svc_name);
-    prhex("svc_hash:", svc_hash, NAN_SVC_HASH_SIZE);
 
     return WIFI_SUCCESS;
 }
@@ -7264,7 +7237,6 @@ class NanEventCap : public WifiCommand
                                 goto fail;
                             }
                             pairing_request_event.pairing_instance_id = pairing_id;
-
                         } else if (attr_type == NAN_ATTRIBUTE_REQUEST_TYPE) {
                             ALOGI("Pairing request type: %u\n", it.get_u16());
                             pairing_request_event.nan_pairing_request_type =
@@ -7277,7 +7249,6 @@ class NanEventCap : public WifiCommand
                                         pairing_request_event.nan_pairing_request_type);
                                 goto fail;
                             }
-
                         } else if (attr_type == NAN_ATTRIBUTE_PAIRING_CACHE) {
                             ALOGI("Pairing cache enabled: %u\n", (u8)it.get_u32());
                             pairing_request_event.enable_pairing_cache = (u8)it.get_u32();
@@ -7285,23 +7256,16 @@ class NanEventCap : public WifiCommand
                         } else if (attr_type == NAN_ATTRIBUTE_NIRA_TAG) {
                             memcpy(pairing_request_event.nira.tag, it.get_data(),
                                     NAN_IDENTITY_TAG_LEN);
-                            prhex("NIRA tag", pairing_request_event.nira.tag,
-                                    NAN_IDENTITY_TAG_LEN);
 
                         } else if (attr_type == NAN_ATTRIBUTE_NIRA_NONCE) {
                             memcpy(pairing_request_event.nira.nonce, it.get_data(),
                                     NAN_IDENTITY_NONCE_LEN);
-                            prhex("NIRA nonce", pairing_request_event.nira.nonce,
-                                    NAN_IDENTITY_NONCE_LEN);
-
                         }
                     }
 
                     if (!pairing_request_event.publish_subscribe_id ||
                             !pairing_request_event.pairing_instance_id) {
-                        ALOGE("Check invalid params received pub_sub_id: 0x%x pairing_id: %u\n",
-                                pairing_request_event.publish_subscribe_id,
-                                pairing_request_event.pairing_instance_id);
+                        ALOGE("Check invalid params received\n");
                         goto fail;
                     }
 
@@ -7356,19 +7320,11 @@ class NanEventCap : public WifiCommand
                         } else if (attr_type == NAN_ATTRIBUTE_PEER_NIK) {
                             memcpy(pairing_confirm_event.npk_security_association.peer_nan_identity_key,
                                     it.get_data(), NAN_IDENTITY_KEY_LEN);
-                            prhex("Peer NIK:",
-                                pairing_confirm_event.npk_security_association.peer_nan_identity_key,
-                                NAN_IDENTITY_KEY_LEN);
 
                         } else if (attr_type == NAN_ATTRIBUTE_LOCAL_NIK) {
                             memcpy(pairing_confirm_event.npk_security_association.local_nan_identity_key,
                                     it.get_data(), NAN_IDENTITY_KEY_LEN);
-                            prhex("Local NIK:",
-                                pairing_confirm_event.npk_security_association.local_nan_identity_key,
-                                NAN_IDENTITY_KEY_LEN);
-
                         } else if (attr_type == NAN_ATTRIBUTE_AKM) {
-                            ALOGI("akm: %u\n", (NanAkm)it.get_u8());
                             pairing_confirm_event.npk_security_association.akm =
                                     (NanAkm)it.get_u8();
                             if ((pairing_confirm_event.npk_security_association.akm >
@@ -7378,29 +7334,20 @@ class NanEventCap : public WifiCommand
                                         pairing_confirm_event.npk_security_association.akm);
                                 goto fail;
                             }
-
                         } else if (attr_type == NAN_ATTRIBUTE_CIPHER_SUITE_TYPE) {
                             u32 csid = it.get_u32();
-                            ALOGI("csid: 0x%x\n", csid);
                             if ((csid != NAN_CIPHER_SUITE_PUBLIC_KEY_PASN_128_MASK) &&
                                     (csid != NAN_CIPHER_SUITE_PUBLIC_KEY_PASN_256_MASK)) {
                                 ALOGE("%s: Invalid cipher_type received :0x%x \n", __func__, csid);
                                 goto fail;
                             }
-
                             pairing_confirm_event.npk_security_association.cipher_type = csid;
-
                         } else if (attr_type == NAN_ATTRIBUTE_KEY_LEN) {
-                            ALOGI("pmk len: %u\n", it.get_u32());
                             pmk_len = it.get_u32();
                             pairing_confirm_event.npk_security_association.npk.pmk_len = pmk_len;
-
                         } else if (attr_type == NAN_ATTRIBUTE_KEY_DATA) {
                             memcpy(pairing_confirm_event.npk_security_association.npk.pmk,
                                     it.get_data(),
-                                    pairing_confirm_event.npk_security_association.npk.pmk_len);
-                            prhex("NPK:",
-                                    (u8 *)pairing_confirm_event.npk_security_association.npk.pmk,
                                     pairing_confirm_event.npk_security_association.npk.pmk_len);
                         }
                     }
@@ -7409,10 +7356,7 @@ class NanEventCap : public WifiCommand
                             (!pairing_confirm_event.npk_security_association.cipher_type ||
                             !pairing_confirm_event.npk_security_association.npk.pmk_len ||
                             !pairing_confirm_event.pairing_instance_id)) {
-                        ALOGE("Check invalid params received csid:0x%x pmk_len:%u pairing_id: %u\n",
-                                pairing_confirm_event.npk_security_association.cipher_type,
-                                pairing_confirm_event.npk_security_association.npk.pmk_len,
-                                pairing_confirm_event.pairing_instance_id);
+                        ALOGE("Check invalid params received\n");
                         goto fail;
                     }
 
@@ -7462,12 +7406,7 @@ class NanEventCap : public WifiCommand
                             !bs_request_event.requestor_instance_id ||
                             !bs_request_event.bootstrapping_instance_id ||
                             !bs_request_event.request_bootstrapping_method) {
-                        ALOGE("Check invalid params recvd pub_sub_id: 0x%x req_inst_id: %u"
-                                "bootstrapping_id: %u bs_methods 0x%x\n",
-                                bs_request_event.publish_subscribe_id,
-                                bs_request_event.requestor_instance_id,
-                                bs_request_event.bootstrapping_instance_id,
-                                bs_request_event.request_bootstrapping_method);
+                        ALOGE("Check invalid params recvd\n");
                         goto fail;
                     }
 
@@ -7514,7 +7453,6 @@ class NanEventCap : public WifiCommand
                                     bs_confirm_event.cookie_length);
                             prhex("cookie :", bs_confirm_event.cookie,
                                     bs_confirm_event.cookie_length);
-
                         }
                     }
 
