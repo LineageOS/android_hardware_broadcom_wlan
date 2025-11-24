@@ -92,6 +92,20 @@ void printMsg(const char *fmt, ...)
     pthread_mutex_unlock(&printMutex);
 }
 
+/* hex string parsing */
+bool hex2bin(const char *hex, uint8_t *bin, size_t max_len) {
+    size_t hex_len = strlen(hex);
+    if (hex_len % 2 != 0 || hex_len/2 > max_len)
+        return false;
+
+    for (size_t i = 0; i < hex_len; i += 2) {
+        if (!isxdigit(hex[i]) || !isxdigit(hex[i+1]))
+            return false;
+        sscanf(hex + i, "%2hhx", &bin[i/2]);
+    }
+    return true;
+}
+
 /* pretty hex print a contiguous buffer */
 static void prhex_msg(const char *msg, u8 *buf, u32 nbytes)
 {
@@ -6504,10 +6518,12 @@ void printUsage() {
            "      [-pmk <32 byte PMK value>]\n");
     printf(" -nan [-pairing_end] -pid <pairing_instance_id>\n");
     printf(" -nan [-bs_req] -dest_id <peer inst id> -lcl_id <local inst id> -peer_addr <mac addr>\n"
-           "      [-bs_methods <supported bootstrapping methods>] [-comeback <is it comeback BS req>]\n"
+           "      [-bs_methods <supported bootstrapping methods>]"
+           "      [-comeback <is it comeback BS req>]\n"
            "      [-cookie <cookie info>] [-info <svc info>] [-sdea_info <sdea svc info>]\n");
     printf(" -nan [-bs_resp] -dest_id <peer inst id> -lcl_id <local inst id> -peer_addr <macaddr>\n"
-           "      [-rsp_code <0-ACCEPT, 1-REJECT, 2- COMEBACK>] [-comeback_delay]\n"
+           "      [-rsp_code <0-ACCEPT, 1-REJECT, 2- COMEBACK>]"
+           "      -comeback_delay <come back delay in sec>\n"
            "      [-bs_methods <supported bootstrapping methods>]\n"
            "      [-cookie <cookie info>] [-info <svc info>] [-sdea_info <sdea svc info>]\n");
     printf(" -dscp [-set] [-s <start>] [-e <end>] [-ac <access_category>]\n");
@@ -6951,11 +6967,12 @@ void OnNanEventBootstrappingConfirmation(NanBootstrappingConfirmInd* event) {
     printMsg(" rsp_code = %d\n", event->rsp_code);
     printMsg(" reason = %d\n", event->reason_code);
     printMsg(" come_back_delay = %d\n", event->come_back_delay);
+    printMsg(" cookie_length = %d\n", event->cookie_length);
     if (event->cookie_length) {
         prhex_msg("Cookie: ", event->cookie, event->cookie_length);
     }
     putEventInCache(EVENT_TYPE_NAN_BOOTSTRAP_CONFIRMATION,
-        "NanBootstrappingEventCOnfirmation");
+        "NanBootstrappingEventConfirmation");
 }
 
 wifi_error nan_init_handlers(void) {
@@ -9339,13 +9356,23 @@ exit:
 
 void nanBootstrappingReq(int argc, char *argv[])
 {
-    NanBootstrappingRequest msg;
+    NanBootstrappingRequest *msg = NULL;
     wifi_error ret = WIFI_SUCCESS;
     char *param = NULL, *val_p = NULL;
     u32 dest_id = 0, lcl_id = 0;
-
-    memset(&msg, 0, sizeof(msg));
-
+    u8 peer_addr[NAN_MAC_ADDR_LEN] = {0};
+    char sdea_info[NAN_MAX_SDEA_SERVICE_SPECIFIC_INFO_LEN + 1] = {0};
+    u8 sdea_info_len = 0;
+    u8 comeback = 0;
+    char info[NAN_MAX_SERVICE_SPECIFIC_INFO_LEN + 1] = {0};
+    u8 info_len = 0;
+    u32 bs_methods = 0;
+    u8 come_back_delay = 0;
+    size_t msg_size = 0;
+    size_t input_len = 0;
+    int is_hex = 0;
+    u8 *cookie_buf = NULL;
+    size_t cookie_len = 0;
     /* skip utility */
     argv++;
     /* skip command */
@@ -9361,54 +9388,65 @@ void nanBootstrappingReq(int argc, char *argv[])
             goto exit;
         }
         if (strcmp(param, "-dest_id") == 0) {
-            msg.requestor_instance_id = atoi(val_p);
-            dest_id = msg.requestor_instance_id;
+            dest_id = atoi(val_p);
         } else if (strcmp(param, "-lcl_id") == 0) {
-            msg.publish_subscribe_id = atoi(val_p);
-            lcl_id = msg.publish_subscribe_id;
+            lcl_id = atoi(val_p);
         } else if (strcmp(param, "-peer_addr") == 0) {
-            if (!ether_atoe(val_p, msg.peer_disc_mac_addr)) {
+            if (!ether_atoe(val_p, peer_addr)) {
                 printMsg("bad peer mac addr !!\n");
                 ret = WIFI_ERROR_INVALID_ARGS;
                 goto exit;
             }
         } else if (strcmp(param, "-bs_methods") == 0) {
-            msg.request_bootstrapping_method = atoi(val_p);
+            bs_methods = atoi(val_p);
         } else if (strcmp(param, "-sdea_info") == 0) {
-            if (strlen((const char*)val_p) > NAN_MAX_SDEA_SERVICE_SPECIFIC_INFO_LEN) {
+            sdea_info_len = strlen(val_p);
+            if (sdea_info_len > NAN_MAX_SDEA_SERVICE_SPECIFIC_INFO_LEN) {
                 printMsg("Invalid SDEA service specific info\n");
                 ret = WIFI_ERROR_INVALID_ARGS;
                 goto exit;
-            } else {
-                msg.sdea_service_specific_info_len = strlen((const char*)val_p);
-                if (!set_interface_params((char*)msg.sdea_service_specific_info,
-                    val_p, msg.sdea_service_specific_info_len)) {
-                        printMsg("Set SDEA service specific info successfull\n");
-                }
             }
+            strncpy(sdea_info, val_p, NAN_MAX_SDEA_SERVICE_SPECIFIC_INFO_LEN);
         } else if (strcmp(param, "-info") == 0) {
-            if (strlen((const char*)val_p) > NAN_MAX_SERVICE_SPECIFIC_INFO_LEN) {
-                printMsg("Invalid  service specific info\n");
+            info_len = strlen(val_p);
+            if (info_len > NAN_MAX_SERVICE_SPECIFIC_INFO_LEN) {
+                printMsg("Invalid service specific info\n");
                 ret = WIFI_ERROR_INVALID_ARGS;
                 goto exit;
-            } else {
-                msg.service_specific_info_len = strlen((const char*)val_p);
-                if (!set_interface_params((char*)msg.service_specific_info,
-                    val_p, msg.service_specific_info_len)) {
-                    printMsg("Set service specific info successfull\n");
-                }
             }
+            strncpy(info, val_p, NAN_MAX_SERVICE_SPECIFIC_INFO_LEN);
+        } else if (strcmp(param, "-comeback") == 0) {
+            comeback = atoi(val_p);
         } else if (strcmp(param, "-cookie") == 0) {
-            if (strlen((const char*)val_p) > NAN_MAX_COOKIE_LEN) {
-                printMsg("Invalid cookie info\n");
+            input_len = strlen((const char*)val_p);
+            is_hex = (input_len >= 2 && val_p[0] == '0' &&
+                (val_p[1] == 'x' || val_p[1] == 'X'));
+            const char* cookie_str = is_hex ? (const char*)(val_p + 2) : (const char*)val_p;
+            size_t actual_len = is_hex ? (input_len - 2) / 2 : input_len;
+            if (actual_len > NAN_MAX_COOKIE_LEN) {
+                printMsg("Invalid cookie length %zu exceeds max %d\n",
+                    actual_len, NAN_MAX_COOKIE_LEN);
                 ret = WIFI_ERROR_INVALID_ARGS;
                 goto exit;
-            } else {
-                msg.cookie_length = strlen((const char*)val_p);
-                if (!set_interface_params((char*)msg.cookie, val_p, msg.cookie_length)) {
-                    printMsg("Set cookie info successfull\n");
-                }
             }
+            cookie_buf = (u8*)malloc(actual_len);
+            if (!cookie_buf) {
+                ret = WIFI_ERROR_OUT_OF_MEMORY;
+                goto exit;
+            }
+
+            if (is_hex) {
+                if (!hex2bin(cookie_str, cookie_buf, actual_len)) {
+                    free(cookie_buf);
+                    ret = WIFI_ERROR_INVALID_ARGS;
+                    goto exit;
+                }
+            } else {
+                memcpy(cookie_buf, cookie_str, actual_len);
+            }
+            cookie_len = actual_len;
+            printMsg("Set cookie info successful, length = %zu\n", cookie_len);
+            prhex_msg("Cookie", cookie_buf, (u32)cookie_len);
         } else {
             printMsg("%s:Unsupported Parameter for nan bootstrapping request \n", __FUNCTION__);
             goto exit;
@@ -9423,26 +9461,73 @@ void nanBootstrappingReq(int argc, char *argv[])
         printMsg("Local Instance Id is mandatory !!\n");
         goto exit;
     }
+
+    msg_size = sizeof(NanBootstrappingRequest) + cookie_len;
+    msg = (NanBootstrappingRequest *)malloc(msg_size);
+    if (!msg) {
+        printMsg("Memory allocation failed for NanBootstrappingRequest\n");
+        ret = WIFI_ERROR_OUT_OF_MEMORY;
+        goto exit;
+    }
+    memset(msg, 0, msg_size);
+
+    memcpy(msg->peer_disc_mac_addr, peer_addr, NAN_MAC_ADDR_LEN);
+    msg->requestor_instance_id = dest_id;
+    msg->comeback = comeback;
+    msg->publish_subscribe_id = lcl_id;
+    msg->request_bootstrapping_method = bs_methods;
+    if (sdea_info_len > 0) {
+        msg->sdea_service_specific_info_len = sdea_info_len;
+        memcpy(msg->sdea_service_specific_info, sdea_info, sdea_info_len);
+    }
+    if (info_len > 0) {
+        msg->service_specific_info_len = info_len;
+        memcpy(msg->service_specific_info, info, info_len);
+    }
+    msg->cookie_length = cookie_len;
+    if (cookie_len > 0 && cookie_buf) {
+        memcpy(msg->cookie, cookie_buf, cookie_len);
+    }
+
     nanCmdId = getNewCmdId();
     ret = nan_init_handlers();
     if (ret != WIFI_SUCCESS) {
         printMsg("Failed to initialize handlers %d\n", ret);
         goto exit;
     }
-    ret = nan_bootstrapping_request(nanCmdId, wlan0Handle, &msg);
+    ret = nan_bootstrapping_request(nanCmdId, wlan0Handle, msg);
 exit:
+
+    if (cookie_buf) {
+        free(cookie_buf);
+    }
+
+    if (msg) {
+        free(msg);
+    }
     printMsg("%s:ret = %d\n", __FUNCTION__, ret);
     return;
 }
 
 void nanBootstrappingResp(int argc, char *argv[])
 {
-    NanBootstrappingIndicationResponse msg;
     wifi_error ret = WIFI_SUCCESS;
     char *param = NULL, *val_p = NULL;
     u32 dest_id = 0, lcl_id = 0;
-
-    memset(&msg, 0, sizeof(msg));
+    size_t input_len = 0;
+    int is_hex = 0;
+    u8 *cookie_buf = NULL;
+    size_t cookie_len = 0;
+    NanBootstrappingIndicationResponse *msg = NULL;
+    u8 peer_addr[NAN_MAC_ADDR_LEN] = {0};
+    char sdea_info[NAN_MAX_SDEA_SERVICE_SPECIFIC_INFO_LEN + 1] = {0};
+    u8 sdea_info_len = 0;
+    char info[NAN_MAX_SERVICE_SPECIFIC_INFO_LEN + 1] = {0};
+    u8 info_len = 0;
+    u32 bs_methods = 0;
+    u8 come_back_delay = 0;
+    u8 rsp_code = 0;
+    size_t msg_size = 0;
 
     /* skip utility */
     argv++;
@@ -9459,58 +9544,67 @@ void nanBootstrappingResp(int argc, char *argv[])
             goto exit;
         }
         if (strcmp(param, "-dest_id") == 0) {
-            msg.service_instance_id = atoi(val_p);
-            dest_id = msg.service_instance_id;
-        } else if (strcmp(param, "-lcl_id") == 0) {
-            msg.publish_subscribe_id = atoi(val_p);
-            lcl_id = msg.publish_subscribe_id;
+            dest_id = atoi(val_p);
+       } else if (strcmp(param, "-lcl_id") == 0) {
+            lcl_id = atoi(val_p);
         } else if (strcmp(param, "-peer_addr") == 0) {
-            if (!ether_atoe(val_p, msg.peer_disc_mac_addr)) {
+            if (!ether_atoe(val_p, peer_addr)) {
                 printMsg("bad peer mac addr !!\n");
                 ret = WIFI_ERROR_INVALID_ARGS;
                 goto exit;
             }
         } else if (strcmp(param, "-rsp_code") == 0) {
-            msg.rsp_code = (NanBootstrappingResponseCode)atoi(val_p);
+            rsp_code = (NanBootstrappingResponseCode)atoi(val_p);
         } else if (strcmp(param, "-comeback_delay") == 0) {
-            msg.come_back_delay = atoi(val_p);
+            come_back_delay = atoi(val_p);
         } else if (strcmp(param, "-bs_methods") == 0) {
-            msg.response_bootstrapping_method = atoi(val_p);
+            bs_methods = atoi(val_p);
         } else if (strcmp(param, "-sdea_info") == 0) {
-            if (strlen((const char*)val_p) > NAN_MAX_SDEA_SERVICE_SPECIFIC_INFO_LEN) {
+            sdea_info_len = strlen(val_p);
+            if (sdea_info_len > NAN_MAX_SDEA_SERVICE_SPECIFIC_INFO_LEN) {
                 printMsg("Invalid SDEA service specific info\n");
                 ret = WIFI_ERROR_INVALID_ARGS;
                 goto exit;
-            } else {
-                msg.sdea_service_specific_info_len = strlen((const char*)val_p);
-                if (!set_interface_params((char*)msg.sdea_service_specific_info,
-                    val_p, msg.sdea_service_specific_info_len)) {
-                        printMsg("Set SDEA service specific info successfull\n");
-                }
             }
+            strncpy(sdea_info, val_p, NAN_MAX_SDEA_SERVICE_SPECIFIC_INFO_LEN);
         } else if (strcmp(param, "-info") == 0) {
-            if (strlen((const char*)val_p) > NAN_MAX_SERVICE_SPECIFIC_INFO_LEN) {
-                printMsg("Invalid  service specific info\n");
+            info_len = strlen(val_p);
+            if (info_len > NAN_MAX_SERVICE_SPECIFIC_INFO_LEN) {
+                printMsg("Invalid service specific info\n");
                 ret = WIFI_ERROR_INVALID_ARGS;
                 goto exit;
-            } else {
-                msg.service_specific_info_len = strlen((const char*)val_p);
-                if (!set_interface_params((char*)msg.service_specific_info,
-                    val_p, msg.service_specific_info_len)) {
-                    printMsg("Set service specific info successfull\n");
-                }
             }
+            strncpy(info, val_p, NAN_MAX_SERVICE_SPECIFIC_INFO_LEN);
         } else if (strcmp(param, "-cookie") == 0) {
-            if (strlen((const char*)val_p) > NAN_MAX_COOKIE_LEN) {
-                printMsg("Invalid cookie info\n");
+            input_len = strlen((const char*)val_p);
+            is_hex = (input_len >= 2 && val_p[0] == '0' &&
+                (val_p[1] == 'x' || val_p[1] == 'X'));
+            const char* cookie_str = is_hex ? (const char*)(val_p + 2) : (const char*)val_p;
+            size_t actual_len = is_hex ? (input_len - 2) / 2 : input_len;
+            if (actual_len > NAN_MAX_COOKIE_LEN) {
+                printMsg("Invalid cookie length %zu exceeds max %d\n",
+                    actual_len, NAN_MAX_COOKIE_LEN);
                 ret = WIFI_ERROR_INVALID_ARGS;
                 goto exit;
-            } else {
-                msg.cookie_length = strlen((const char*)val_p);
-                if (!set_interface_params((char*)msg.cookie, val_p, msg.cookie_length)) {
-                    printMsg("Set cookie info successfull\n");
-                }
             }
+            cookie_buf = (u8*)malloc(actual_len);
+            if (!cookie_buf) {
+                ret = WIFI_ERROR_OUT_OF_MEMORY;
+                goto exit;
+            }
+
+            if (is_hex) {
+                if (!hex2bin(cookie_str, cookie_buf, actual_len)) {
+                    free(cookie_buf);
+                    ret = WIFI_ERROR_INVALID_ARGS;
+                    goto exit;
+                }
+            } else {
+                memcpy(cookie_buf, cookie_str, actual_len);
+            }
+            cookie_len = actual_len;
+            printMsg("Set cookie info successful, length = %zu\n", cookie_len);
+            prhex_msg("Cookie", cookie_buf, (u32)cookie_len);
         } else {
             printMsg("%s:Unsupported Parameter for nan bootstrapping response  %s \n", __FUNCTION__, param);
             goto exit;
@@ -9525,14 +9619,53 @@ void nanBootstrappingResp(int argc, char *argv[])
         printMsg("Local Instance Id is mandatory !!\n");
         goto exit;
     }
+
+    msg_size = sizeof(NanBootstrappingIndicationResponse) + cookie_len;
+    msg = (NanBootstrappingIndicationResponse *)malloc(msg_size);
+    if (!msg) {
+        printMsg("Memory allocation failed for NanBootstrappingIndicationResponse\n");
+        ret = WIFI_ERROR_OUT_OF_MEMORY;
+        goto exit;
+    }
+    memset(msg, 0, msg_size);
+
+    memcpy(msg->peer_disc_mac_addr, peer_addr, NAN_MAC_ADDR_LEN);
+    msg->publish_subscribe_id = lcl_id;
+    msg->service_instance_id = dest_id;
+    msg->rsp_code = (NanBootstrappingResponseCode)rsp_code;
+    msg->come_back_delay = come_back_delay;
+    msg->response_bootstrapping_method = bs_methods;
+    if (sdea_info_len > 0) {
+        msg->sdea_service_specific_info_len = sdea_info_len;
+        memcpy(msg->sdea_service_specific_info, sdea_info, sdea_info_len);
+    }
+    if (info_len > 0) {
+        msg->service_specific_info_len = info_len;
+        memcpy(msg->service_specific_info, info, info_len);
+    }
+    msg->cookie_length = cookie_len;
+    if (cookie_len > 0 && cookie_buf) {
+        memcpy(msg->cookie, cookie_buf, cookie_len);
+    }
+
     nanCmdId = getNewCmdId();
     ret = nan_init_handlers();
     if (ret != WIFI_SUCCESS) {
         printMsg("Failed to initialize handlers %d\n", ret);
         goto exit;
     }
-    ret = nan_bootstrapping_indication_response(nanCmdId, wlan0Handle, &msg);
+    ret = nan_bootstrapping_indication_response(nanCmdId, wlan0Handle, msg);
+
 exit:
+
+    if (cookie_buf) {
+        free(cookie_buf);
+    }
+
+    if (msg) {
+        free(msg);
+    }
+
     printMsg("%s:ret = %d\n", __FUNCTION__, ret);
     return;
 }
@@ -10625,7 +10758,8 @@ int main(int argc, char *argv[]) {
                 printf(" -nan [-bs_resp] dest_id <peer inst id> -lcl_id <local inst id> \n"
                    "     -peer_addr <mac addr> -rsp_code <0-ACCEPT, 1-REJECT, 2- COMEBACK>\n"
                    "     -bs_methods <supported bootstrapping methiods>\n"
-                   "     [-comeback_delay] [-cookie <cookie info>] [-info <svc info>] \n"
+                   "     [-comeback_delay <delay in seconds>]"
+                   "     [-cookie <cookie info>] [-info <svc info>] \n"
                    "     [-sdea_info <sdea svcinfo>]\n");
                 printMsg("\n Mandatory fields are not present\n");
                 goto cleanup;

@@ -49,6 +49,7 @@
 #include <openssl/evp.h>
 #include <sys/ioctl.h>
 
+static pthread_mutex_t nan_bs_event_mutex = PTHREAD_MUTEX_INITIALIZER;
 /* Changes between incompatible Version of NAN */
 #define NAN_MAJOR_REL_VERSION       1
 /* Changes between Source and Binary compatible Version of NAN */
@@ -324,7 +325,8 @@ typedef enum {
     NAN_ATTRIBUTE_ENAB_PAIRING_VERIFICATION         = 247,
     NAN_ATTRIBUTE_KEY_DATA_PASSPHRASE               = 248,
     NAN_ATTRIBUTE_GTK_CSID                          = 249,
-    NAN_ATTRIBUTE_CSIA_CAPABILITIES                 = 250
+    NAN_ATTRIBUTE_CSIA_CAPABILITIES                 = 250,
+    NAN_ATTRIBUTE_COME_BACK                         = 251,
 } NAN_ATTRIBUTE;
 
 typedef enum {
@@ -1248,6 +1250,14 @@ class NanPairingPrimitive : public WifiCommand
             }
         }
 
+        if (mParams->comeback) {
+            result = request.put_u8(NAN_ATTRIBUTE_COME_BACK, mParams->comeback);
+            if (result < 0) {
+                ALOGE("%s: Failed to fill comeback, result = %d\n", __func__, result);
+                return result;
+            }
+        }
+
         if (mParams->cookie_length) {
             if (mParams->cookie_length > NAN_MAX_COOKIE_LEN) {
                 ALOGE("%s: Failed to fill cookie len, Invalid cookie len = %d\n", __func__,
@@ -1361,6 +1371,9 @@ class NanPairingPrimitive : public WifiCommand
     {
         int cmd = event.get_vendor_subcmd();
         u16 attr_type;
+        NanBootstrappingConfirmInd *bs_confirm_event = NULL;
+        size_t cookie_len = 0;
+        size_t total_size = 0;
 
         ALOGI("Received NanPairingPrimitive event: %d\n", event.get_cmd());
         nlattr *vendor_data = event.get_attribute(NL80211_ATTR_VENDOR_DATA);
@@ -1581,61 +1594,98 @@ class NanPairingPrimitive : public WifiCommand
 
                 GET_NAN_HANDLE(info)->mHandlers.EventBootstrappingRequest(&bs_request_event);
                 break;
-            case NAN_EVENT_BOOTSTRAPPING_CONFIRMATION:
-                NanBootstrappingConfirmInd bs_confirm_event;
-                memset(&bs_confirm_event, 0, sizeof(NanBootstrappingConfirmInd));
+            case NAN_EVENT_BOOTSTRAPPING_CONFIRMATION: {
+                pthread_mutex_lock(&nan_bs_event_mutex);
                 ALOGI("Received NAN_EVENT_BOOTSTRAPPING_CONFIRMATION\n");
+                for (nl_iterator it(vendor_data); it.has_next(); it.next()) {
+                    if (it.get_type() == NAN_ATTRIBUTE_COOKIE_LEN) {
+                        cookie_len = it.get_u32();
+                        ALOGI("cookie len: %zu\n", cookie_len);
+                        break;
+                    }
+                }
+
+                total_size = sizeof(NanBootstrappingConfirmInd) + cookie_len;
+                bs_confirm_event = (NanBootstrappingConfirmInd*)malloc(total_size);
+                if (!bs_confirm_event) {
+                    ALOGE("Failed to allocate memory for bootstrapping confirm event");
+                    goto fail;
+                }
+                memset(bs_confirm_event, 0, total_size);
 
                 for (nl_iterator it(vendor_data); it.has_next(); it.next()) {
                     attr_type = it.get_type();
 
                     if (attr_type == NAN_ATTRIBUTE_INST_ID) {
                         ALOGI("bootstrapping instance id: %u\n", it.get_u32());
-                        bs_confirm_event.bootstrapping_instance_id = it.get_u32();
+                        bs_confirm_event->bootstrapping_instance_id = it.get_u32();
 
-                        if ((bs_confirm_event.bootstrapping_instance_id <= NAN_MIN) ||
-                               (bs_confirm_event.bootstrapping_instance_id > NAN_MAX)) {
+                        if ((bs_confirm_event->bootstrapping_instance_id <= NAN_MIN) ||
+                            (bs_confirm_event->bootstrapping_instance_id > NAN_MAX)) {
                             ALOGE("INVALID bootstrapping instance id: %u\n",
-                                   bs_confirm_event.bootstrapping_instance_id);
+                                bs_confirm_event->bootstrapping_instance_id);
+                            free(bs_confirm_event);
                             goto fail;
                         }
 
                     } else if (attr_type == NAN_ATTRIBUTE_RSP_CODE) {
                         ALOGI("response code: %u\n", (NanBootstrappingResponseCode)it.get_u8());
-                        bs_confirm_event.rsp_code = (NanBootstrappingResponseCode)it.get_u8();
+                        bs_confirm_event->rsp_code = (NanBootstrappingResponseCode)it.get_u8();
 
                     } else if (attr_type == NAN_ATTRIBUTE_STATUS) {
                         ALOGI("reason_code: %u\n", (NanStatusType)it.get_u8());
-                        bs_confirm_event.reason_code = (NanStatusType)it.get_u8();
+                        bs_confirm_event->reason_code = (NanStatusType)it.get_u8();
 
                     } else if (attr_type == NAN_ATTRIBUTE_COME_BACK_DELAY) {
                         ALOGI("comeback delay: %u\n", it.get_u32());
-                        bs_confirm_event.come_back_delay = it.get_u32();
+                        bs_confirm_event->come_back_delay = it.get_u32();
 
                     } else if (attr_type == NAN_ATTRIBUTE_COOKIE_LEN) {
                         ALOGI("cookie len: %u\n", it.get_u32());
-                        bs_confirm_event.cookie_length = it.get_u32();
-
+                        bs_confirm_event->cookie_length = it.get_u32();
+                        if (bs_confirm_event->cookie_length > cookie_len) {
+                            ALOGE("cookie_length %u exceeds allocated %zu",
+                                    bs_confirm_event->cookie_length, cookie_len);
+                            free(bs_confirm_event);
+                            goto fail;
+                        }
                     } else if (attr_type == NAN_ATTRIBUTE_COOKIE) {
-                        memcpy(bs_confirm_event.cookie, it.get_data(),
-                                bs_confirm_event.cookie_length);
-                        prhex("cookie", bs_confirm_event.cookie,
-                                bs_confirm_event.cookie_length);
+                        if (bs_confirm_event->cookie_length > 0) {
+                            if (it.get_len() < bs_confirm_event->cookie_length) {
+                                ALOGE("Cookie data length %d < expected %u", it.get_len(),
+                                    bs_confirm_event->cookie_length);
+                                free(bs_confirm_event);
+                                goto fail;
+                            }
+                            memcpy(bs_confirm_event->cookie, it.get_data(),
+                                bs_confirm_event->cookie_length);
+                        }
                     }
                 }
 
-                if (!bs_confirm_event.bootstrapping_instance_id) {
+                if (!bs_confirm_event->bootstrapping_instance_id) {
                     ALOGE("Check invalid bootstrapping_id: %u recvd\n",
-                            bs_confirm_event.bootstrapping_instance_id);
+                            bs_confirm_event->bootstrapping_instance_id);
+                    free(bs_confirm_event);
                     goto fail;
                 }
 
-                GET_NAN_HANDLE(info)->mHandlers.EventBootstrappingConfirm(&bs_confirm_event);
+                pthread_mutex_unlock(&nan_bs_event_mutex);
+                GET_NAN_HANDLE(info)->mHandlers.EventBootstrappingConfirm(bs_confirm_event);
                 break;
+            }
         } // end-of-switch-case
+
+        if (bs_confirm_event) {
+            free(bs_confirm_event);
+        }
         return NL_SKIP;
 fail:
     ALOGE("Dropping Pairing Event %d, invalid params received \n", cmd);
+    if (bs_confirm_event) {
+        free(bs_confirm_event);
+    }
+    pthread_mutex_unlock(&nan_bs_event_mutex);
     return NL_STOP;
     }
 };
@@ -5390,6 +5440,7 @@ static const char *NanAttrToString(u16 cmd)
         C2S(NAN_ATTRIBUTE_BS_METHODS)
         C2S(NAN_ATTRIBUTE_GTK_CSID)
         C2S(NAN_ATTRIBUTE_CSIA_CAPABILITIES)
+        C2S(NAN_ATTRIBUTE_COME_BACK)
 
         default:
             return "NAN_ATTRIBUTE_UNKNOWN";
@@ -6041,6 +6092,7 @@ static int dump_NanBootstrapingRequest(NanBootstrappingRequest* msg)
     ALOGI("peer requestor instance id=%u\n", msg->requestor_instance_id);
     ALOGI("peer_disc_mac_addr=" MACSTR "\n", MAC2STR(msg->peer_disc_mac_addr));
     ALOGI("request_bootstrapping_method=%u\n", msg->request_bootstrapping_method);
+    ALOGI("come_back=%u\n", msg->come_back);
     ALOGI("cookie_length=%u\n", msg->cookie_length);
     if (msg->cookie_length) {
         prhex(NULL, msg->cookie, msg->cookie_length);
@@ -6712,6 +6764,9 @@ class NanEventCap : public WifiCommand
 
         int handleEvent(WifiEvent& event) {
             NanDataPathEndInd *ndp_end_event = NULL;
+            NanBootstrappingConfirmInd *bs_confirm_event = NULL;
+            size_t cookie_len = 0;
+            size_t total_size = 0;
             int cmd = event.get_vendor_subcmd();
             u16 attr_type;
             nlattr *vendor_data = event.get_attribute(NL80211_ATTR_VENDOR_DATA);
@@ -7414,72 +7469,106 @@ class NanEventCap : public WifiCommand
                     break;
                 }
                 case NAN_EVENT_BOOTSTRAPPING_CONFIRMATION: {
-                    NanBootstrappingConfirmInd bs_confirm_event;
-                    memset(&bs_confirm_event, 0, sizeof(NanBootstrappingConfirmInd));
-                    ALOGI("Received NAN_EVENT_BOOTSTRAPPING_CONFIRMATION\n");
+                    pthread_mutex_lock(&nan_bs_event_mutex);
+                    ALOGI("Event cap: Received NAN_EVENT_BOOTSTRAPPING_CONFIRMATION\n");
+                    for (nl_iterator it(vendor_data); it.has_next(); it.next()) {
+                        if (it.get_type() == NAN_ATTRIBUTE_COOKIE_LEN) {
+                            cookie_len = it.get_u32();
+                            break;
+                        }
+                    }
+
+                    total_size = sizeof(NanBootstrappingConfirmInd) + cookie_len;
+                    bs_confirm_event = (NanBootstrappingConfirmInd*)malloc(total_size);
+                    if (!bs_confirm_event) {
+                        ALOGE("Failed to allocate memory for bootstrapping confirm event");
+                        goto fail;
+                    }
+                    memset(bs_confirm_event, 0, total_size);
 
                     for (nl_iterator it(vendor_data); it.has_next(); it.next()) {
                         attr_type = it.get_type();
 
                         if (attr_type == NAN_ATTRIBUTE_INST_ID) {
                             ALOGI("bootstrapping instance id: %u\n", it.get_u32());
-                            bs_confirm_event.bootstrapping_instance_id = it.get_u32();
+                            bs_confirm_event->bootstrapping_instance_id = it.get_u32();
 
-                            if ((bs_confirm_event.bootstrapping_instance_id <= NAN_MIN) ||
-                                    (bs_confirm_event.bootstrapping_instance_id > NAN_MAX)) {
+                            if ((bs_confirm_event->bootstrapping_instance_id <= NAN_MIN) ||
+                                (bs_confirm_event->bootstrapping_instance_id > NAN_MAX)) {
                                 ALOGE("INVALID bootstrapping instance id: %u\n",
-                                        bs_confirm_event.bootstrapping_instance_id);
+                                    bs_confirm_event->bootstrapping_instance_id);
+                                free(bs_confirm_event);
                                 goto fail;
                             }
 
                         } else if (attr_type == NAN_ATTRIBUTE_RSP_CODE) {
                             ALOGI("response code: %u\n", (NanBootstrappingResponseCode)it.get_u8());
-                            bs_confirm_event.rsp_code = (NanBootstrappingResponseCode)it.get_u8();
+                            bs_confirm_event->rsp_code = (NanBootstrappingResponseCode)it.get_u8();
 
                         } else if (attr_type == NAN_ATTRIBUTE_STATUS) {
                             ALOGI("reason_code: %u\n", (NanStatusType)it.get_u8());
-                            bs_confirm_event.reason_code = (NanStatusType)it.get_u8();
+                            bs_confirm_event->reason_code = (NanStatusType)it.get_u8();
 
                         } else if (attr_type == NAN_ATTRIBUTE_COME_BACK_DELAY) {
                             ALOGI("comeback delay: %u\n", it.get_u32());
-                            bs_confirm_event.come_back_delay = it.get_u32();
+                            bs_confirm_event->come_back_delay = it.get_u32();
 
                         } else if (attr_type == NAN_ATTRIBUTE_COOKIE_LEN) {
                             ALOGI("cookie len: %u\n", it.get_u32());
-                            bs_confirm_event.cookie_length = it.get_u32();
-
+                            bs_confirm_event->cookie_length = it.get_u32();
+                            if (bs_confirm_event->cookie_length > cookie_len) {
+                                ALOGE("cookie_length %u exceeds allocated %zu",
+                                    bs_confirm_event->cookie_length, cookie_len);
+                                free(bs_confirm_event);
+                                goto fail;
+                            }
                         } else if (attr_type == NAN_ATTRIBUTE_COOKIE) {
-                            memcpy(bs_confirm_event.cookie, it.get_data(),
-                                    bs_confirm_event.cookie_length);
-                            prhex("cookie :", bs_confirm_event.cookie,
-                                    bs_confirm_event.cookie_length);
+                            if (bs_confirm_event->cookie_length > 0) {
+                                if (it.get_len() < bs_confirm_event->cookie_length) {
+                                    ALOGE("Cookie data length %d < expected %u",
+                                        it.get_len(), bs_confirm_event->cookie_length);
+                                    free(bs_confirm_event);
+                                    goto fail;
+                                }
+                                memcpy(bs_confirm_event->cookie, it.get_data(),
+                                    bs_confirm_event->cookie_length);
+                            }
                         }
                     }
 
-                    if (!bs_confirm_event.bootstrapping_instance_id) {
+                    if (!bs_confirm_event->bootstrapping_instance_id) {
                         ALOGE("Check invalid bootstrapping_id: %u recvd\n",
-                                bs_confirm_event.bootstrapping_instance_id);
+                                bs_confirm_event->bootstrapping_instance_id);
+                        free(bs_confirm_event);
                         goto fail;
                     }
 
-                    GET_NAN_HANDLE(info)->mHandlers.EventBootstrappingConfirm(&bs_confirm_event);
+                    pthread_mutex_unlock(&nan_bs_event_mutex);
+                    GET_NAN_HANDLE(info)->mHandlers.EventBootstrappingConfirm(bs_confirm_event);
                     break;
                 }
-
                 case NAN_EVENT_UNKNOWN:
                     ALOGI("Received NAN_EVENT_UNKNOWN\n");
                     break;
             } // end-of-switch
 
+            if (bs_confirm_event) {
+                free(bs_confirm_event);
+            }
             if (ndp_end_event) {
                 free(ndp_end_event);
             }
             return NL_SKIP;
-fail:
+        fail:
             ALOGE("Dropping Pairing Event %d, invalid params received \n", cmd);
+
+            if (bs_confirm_event) {
+                free(bs_confirm_event);
+            }
             if (ndp_end_event) {
                 free(ndp_end_event);
             }
+            pthread_mutex_unlock(&nan_bs_event_mutex);
             return NL_STOP;
         }
 };
