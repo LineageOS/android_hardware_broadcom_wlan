@@ -48,6 +48,7 @@
 #include <openssl/sha.h>
 #include <openssl/evp.h>
 #include <sys/ioctl.h>
+#include <map>
 
 static pthread_mutex_t nan_bs_event_mutex = PTHREAD_MUTEX_INITIALIZER;
 /* Changes between incompatible Version of NAN */
@@ -110,6 +111,22 @@ struct nan_dbg_cntrs {
 nan_dbg_cntrs counters;
 
 u32 current_dhd_hal_ver = 0;
+
+static std::map<unsigned int, unsigned int> bootstrapping_id_map;
+static std::map<unsigned int, unsigned int> bootstrapping_method_map
+    = {{NAN_PAIRING_BOOTSTRAPPING_NONE_MASK, NAN_PAIRING_BOOTSTRAPPING_NONE_MASK},
+    {NAN_PAIRING_BOOTSTRAPPING_OPPORTUNISTIC_MASK, NAN_PAIRING_BOOTSTRAPPING_OPPORTUNISTIC_MASK},
+    {NAN_PAIRING_BOOTSTRAPPING_PIN_CODE_DISPLAY_MASK, NAN_PAIRING_BOOTSTRAPPING_PIN_CODE_KEYPAD_MASK},
+    {NAN_PAIRING_BOOTSTRAPPING_PASSPHRASE_DISPLAY_MASK, NAN_PAIRING_BOOTSTRAPPING_PASSPHRASE_KEYPAD_MASK},
+    {NAN_PAIRING_BOOTSTRAPPING_QR_DISPLAY_MASK,  NAN_PAIRING_BOOTSTRAPPING_QR_SCAN_MASK},
+    {NAN_PAIRING_BOOTSTRAPPING_NFC_TAG_MASK, NAN_PAIRING_BOOTSTRAPPING_NFC_READER_MASK},
+    {NAN_PAIRING_BOOTSTRAPPING_PIN_CODE_KEYPAD_MASK, NAN_PAIRING_BOOTSTRAPPING_PIN_CODE_DISPLAY_MASK},
+    {NAN_PAIRING_BOOTSTRAPPING_PASSPHRASE_KEYPAD_MASK, NAN_PAIRING_BOOTSTRAPPING_PASSPHRASE_DISPLAY_MASK},
+    {NAN_PAIRING_BOOTSTRAPPING_QR_SCAN_MASK,  NAN_PAIRING_BOOTSTRAPPING_QR_DISPLAY_MASK},
+    {NAN_PAIRING_BOOTSTRAPPING_NFC_READER_MASK, NAN_PAIRING_BOOTSTRAPPING_NFC_TAG_MASK},
+    {NAN_PAIRING_BOOTSTRAPPING_SERVICE_MANAGED_MASK, NAN_PAIRING_BOOTSTRAPPING_SERVICE_MANAGED_MASK},
+    {NAN_PAIRING_BOOTSTRAPPING_HANDSHAKE_SHIP_MASK, NAN_PAIRING_BOOTSTRAPPING_HANDSHAKE_SHIP_MASK}
+};
 
 /* TODO: Known bug in Android which was discovered too late and then left in for backward compatibility.
  * The issue is that the Service Name selected by the framework is invalid - it contains a space.
@@ -1157,7 +1174,17 @@ class NanPairingPrimitive : public WifiCommand
             ALOGE("%s: Failed to fill comeback delay, result = %d\n", __func__, result);
             return result;
         }
-        result = request.put_u16(NAN_ATTRIBUTE_BS_METHODS, mParams->response_bootstrapping_method);
+        pthread_mutex_lock(&nan_bs_event_mutex);
+        if (!mParams->rsp_code) {
+            if (mParams->response_bootstrapping_method) {
+                result = request.put_u16(NAN_ATTRIBUTE_BS_METHODS, mParams->response_bootstrapping_method);
+            } else {
+                int method = bootstrapping_id_map[mParams->service_instance_id];
+                result = request.put_u16(NAN_ATTRIBUTE_BS_METHODS, bootstrapping_method_map[method]);
+            }
+        }
+        bootstrapping_id_map.erase(mParams->service_instance_id);
+        pthread_mutex_unlock(&nan_bs_event_mutex);
         if (result < 0) {
             ALOGE("%s: Failed to fill Supported BS methods, result = %d\n", __func__, result);
             return result;
@@ -1575,6 +1602,10 @@ class NanPairingPrimitive : public WifiCommand
                     } else if (attr_type == NAN_ATTRIBUTE_BS_METHODS) {
                         ALOGI("Peer BS methods: 0x%x\n", it.get_u16());
                         bs_request_event.request_bootstrapping_method = it.get_u16();
+                        pthread_mutex_lock(&nan_bs_event_mutex);
+                        bootstrapping_id_map[bs_request_event.bootstrapping_instance_id] =
+                                bs_request_event.request_bootstrapping_method;
+                        pthread_mutex_unlock(&nan_bs_event_mutex);
 
                     }
                 }
