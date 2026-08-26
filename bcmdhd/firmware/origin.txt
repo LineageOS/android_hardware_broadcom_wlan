@@ -1,0 +1,81 @@
+# The following files are extracted from adt3-user-12-STT1.211025.001.Z4-7928920-release-keys.
+bcm4339a0_ag/config_bcm4339a0_ag.txt
+bcm4339a0_ag/fw_bcm4339a0_ag.bin
+bcm4339a0_ag/nvram_ap6335.txt
+bcm43436b0/config_bcm43436b0.txt
+bcm43436b0/fw_bcm43436b0.bin
+bcm43436b0/nvram_ap6236.txt
+bcm43438a0/config_bcm43438a0.txt
+bcm43438a0/fw_bcm43438a0.bin
+bcm43438a0/nvram_ap6212.txt
+bcm43456c5_ag/config_bcm43456c5_ag.txt
+bcm43456c5_ag/fw_bcm43456c5_ag.bin
+bcm43456c5_ag/nvram_ap6256.txt
+bcm4356a2_ag/config_bcm4356a2_ag.txt
+bcm4356a2_ag/fw_bcm4356a2_ag.bin
+bcm4356a2_ag/fw_bcm4356a2_ag_apsta.bin
+bcm4356a2_ag/fw_bcm4356a2_ag_p2p.bin
+bcm4356a2_ag/nvram_ap6356.txt
+bcm4358u_ag/fw_bcm4358u_ag.bin
+bcm4358u_ag/nvram_ap62x8.txt
+bcm4359c0_ag/config_bcm4359c0_ag.txt
+bcm4359c0_ag/fw_bcm4359c0_ag.bin
+bcm4359c0_ag/nvram_ap6398s.txt
+bcm43751a1_ag/clm_bcm43751a1_ag.blob
+bcm43751a1_ag/fw_bcm43751a1_ag.bin
+
+# The following files are extracted from sabrina_prod_stable-user-10-QTS1.210311.008-7350836-release-keys.
+bcm4359c0_ag/sabrina/config_bcm4359c0_ag.txt
+bcm4359c0_ag/sabrina/fw_bcm4359c0_ag.bin
+bcm4359c0_ag/sabrina/nvram_ap6398s.txt
+
+# The following files are extracted from fbx8am-user 10 QTT8.201201.002 v10.5.59 release-keys.
+bcm4359c51a2_ag/clm_bcm4359c51a2_ag.blob
+bcm4359c51a2_ag/config_bcm4359c51a2_ag.txt
+bcm4359c51a2_ag/fw_bcm4359c51a2_ag.bin
+bcm4359c51a2_ag/fw_bcm4359c51a2_ag_apsta.bin
+bcm4359c0_ag/nvram_ap6398sa.txt
+bcm4359c0_ag/nvram_ap6398sa3.txt
+bcm4359c51a2_ag/nvram_ap6398sr32.txt
+
+# The following files are extracted from https://github.com/radxa/firmware/tree/9688073218f24a6976e4b668077a957d0e1a0d94/cypress.
+bcm43455c0_ag/clm_bcm43455c0_ag.blob
+bcm43455c0_ag/fw_bcm43455c0_ag.bin
+bcm43455c0_ag/nvram_ap6255.txt
+
+# The following files are extracted from https://github.com/radxa/firmware/tree/9688073218f24a6976e4b668077a957d0e1a0d94/brcm.
+# BCM4345C0_003.001.025.0162.0000_Generic_UART_37_4MHz_wlbga_ref_iLNA_iTR_eLG.hcd copied to match our driver's naming expectations.
+# https://github.com/radxa/firmware/blob/master/brcm/brcmfmac43455-sdio.txt copied to our drivers naming expectations.
+bcm43455c0_ag/config_bcm43455c0_ag.txt
+
+# The following files are from the currently tracked AOSP tag.
+bcm4324/fw_bcm4324.bin
+bcm4329/fw_bcm4329.bin
+bcm4329/fw_bcm4329_abg.bin
+bcm4329/fw_bcm4329_apsta.bin
+bcm4330/fw_bcm4330_abg.bin
+bcm4330/fw_bcm4330_apsta_bg.bin
+bcm4330/fw_bcm4330_bg.bin
+bcm43341/fw_bcm43341.bin
+bcm4335/fw_bcmdhd.bin
+bcm4335/fw_bcmdhd_ap.bin
+bcm4335/fw_bcmdhd_mfg.bin
+bcm4339/fw_bcmdhd.bin
+bcm4339/fw_bcmdhd_apsta.bin
+bcm4343/fw_bcm4343.bin
+bcm4343/fw_bcm4343_a1.bin
+bcm4343/fw_bcm4343_a1_apsta.bin
+bcm4343/fw_bcm4343_apsta.bin
+bcm4350/fw_bcm4350.bin
+bcm4354/fw_bcm4354.bin
+bcm4354/fw_bcm4354_ap.bin
+bcm4356/fw_bcm4356_ap_pcie.bin
+bcm4356/fw_bcm4356_ap_sdio.bin
+bcm4356/fw_bcm4356_pcie.bin
+bcm4356/fw_bcm4356_sdio.bin
+bcm4358/fw_bcm4358.bin
+bcm4358/fw_bcm4358_ap.bin
+bcm4375/fw_bcm4375.bin
+bcm4375/fw_bcm4375_ap.bin
+bcm4375/fw_bcm4375_b1.bin
+bcm4375/fw_bcm4375_b1_ap.bin
