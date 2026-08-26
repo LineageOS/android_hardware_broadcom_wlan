@@ -1,0 +1,78 @@
+#
+# SPDX-FileCopyrightText: The LineageOS Project
+# SPDX-License-Identifier: Apache-2.0
+#
+
+WIFI_FIRMWARE_PATH := kernel/platform/kernel-5.15/vendor/amlogic/dhd-driver/firmware
+
+# bcm4339a0_ag ap6335
+PRODUCT_COPY_FILES += \
+    $(WIFI_FIRMWARE_PATH)/bcm4339a0_ag/config_bcm4339a0_ag.txt:$(TARGET_COPY_OUT_VENDOR)/lib/firmware/wifi/config_bcm4339a0_ag.txt \
+    $(WIFI_FIRMWARE_PATH)/bcm4339a0_ag/fw_bcm4339a0_ag.bin:$(TARGET_COPY_OUT_VENDOR)/lib/firmware/wifi/fw_bcm4339a0_ag.bin \
+    $(WIFI_FIRMWARE_PATH)/bcm4339a0_ag/nvram_ap6335.txt:$(TARGET_COPY_OUT_VENDOR)/lib/firmware/wifi/nvram_ap6335.txt
+
+# bcm4356a2_ag ap6356
+PRODUCT_COPY_FILES += \
+    $(WIFI_FIRMWARE_PATH)/bcm4356a2_ag/config_bcm4356a2_ag.txt:$(TARGET_COPY_OUT_VENDOR)/lib/firmware/wifi/config_bcm4356a2_ag.txt \
+    $(WIFI_FIRMWARE_PATH)/bcm4356a2_ag/fw_bcm4356a2_ag.bin:$(TARGET_COPY_OUT_VENDOR)/lib/firmware/wifi/fw_bcm4356a2_ag.bin \
+    $(WIFI_FIRMWARE_PATH)/bcm4356a2_ag/fw_bcm4356a2_ag_apsta.bin:$(TARGET_COPY_OUT_VENDOR)/lib/firmware/wifi/fw_bcm4356a2_ag_apsta.bin \
+    $(WIFI_FIRMWARE_PATH)/bcm4356a2_ag/fw_bcm4356a2_ag_p2p.bin:$(TARGET_COPY_OUT_VENDOR)/lib/firmware/wifi/fw_bcm4356a2_ag_p2p.bin \
+    $(WIFI_FIRMWARE_PATH)/bcm4356a2_ag/nvram_ap6356.txt:$(TARGET_COPY_OUT_VENDOR)/lib/firmware/wifi/nvram_ap6356.txt
+
+# bcm4358u_ag ap62x8
+PRODUCT_COPY_FILES += \
+    $(WIFI_FIRMWARE_PATH)/bcm4358u_ag/fw_bcm4358u_ag.bin:$(TARGET_COPY_OUT_VENDOR)/lib/firmware/wifi/fw_bcm4358u_ag.bin \
+    $(WIFI_FIRMWARE_PATH)/bcm4358u_ag/nvram_ap62x8.txt:$(TARGET_COPY_OUT_VENDOR)/lib/firmware/wifi/nvram_ap62x8.txt
+
+# bcm4359c0_ag ap6398s
+ifneq ($(filter %sabrina,$(TARGET_PRODUCT)),)
+PRODUCT_COPY_FILES += \
+    $(WIFI_FIRMWARE_PATH)/bcm4359c0_ag/sabrina/config_bcm4359c0_ag.txt:$(TARGET_COPY_OUT_VENDOR)/lib/firmware/wifi/config_bcm4359c0_ag.txt \
+    $(WIFI_FIRMWARE_PATH)/bcm4359c0_ag/sabrina/fw_bcm4359c0_ag.bin:$(TARGET_COPY_OUT_VENDOR)/lib/firmware/wifi/fw_bcm4359c0_ag.bin \
+    $(WIFI_FIRMWARE_PATH)/bcm4359c0_ag/sabrina/nvram_ap6398s.txt:$(TARGET_COPY_OUT_VENDOR)/lib/firmware/wifi/nvram_ap6398s.txt
+else
+PRODUCT_COPY_FILES += \
+    $(WIFI_FIRMWARE_PATH)/bcm4359c0_ag/config_bcm4359c0_ag.txt:$(TARGET_COPY_OUT_VENDOR)/lib/firmware/wifi/config_bcm4359c0_ag.txt \
+    $(WIFI_FIRMWARE_PATH)/bcm4359c0_ag/fw_bcm4359c0_ag.bin:$(TARGET_COPY_OUT_VENDOR)/lib/firmware/wifi/fw_bcm4359c0_ag.bin \
+    $(WIFI_FIRMWARE_PATH)/bcm4359c0_ag/nvram_ap6398s.txt:$(TARGET_COPY_OUT_VENDOR)/lib/firmware/wifi/nvram_ap6398s.txt \
+    $(WIFI_FIRMWARE_PATH)/bcm4359c0_ag/nvram_ap6398sa.txt:$(TARGET_COPY_OUT_VENDOR)/lib/firmware/wifi/nvram_ap6398sa.txt \
+    $(WIFI_FIRMWARE_PATH)/bcm4359c0_ag/nvram_ap6398sa3.txt:$(TARGET_COPY_OUT_VENDOR)/lib/firmware/wifi/nvram_ap6398sa3.txt
+endif
+
+# bcm43436b0 ap6236
+PRODUCT_COPY_FILES += \
+    $(WIFI_FIRMWARE_PATH)/bcm43436b0/config_bcm43436b0.txt:$(TARGET_COPY_OUT_VENDOR)/lib/firmware/wifi/config_bcm43436b0.txt \
+    $(WIFI_FIRMWARE_PATH)/bcm43436b0/fw_bcm43436b0.bin:$(TARGET_COPY_OUT_VENDOR)/lib/firmware/wifi/fw_bcm43436b0.bin \
+    $(WIFI_FIRMWARE_PATH)/bcm43436b0/nvram_ap6236.txt:$(TARGET_COPY_OUT_VENDOR)/lib/firmware/wifi/nvram_ap6236.txt
+
+# bcm43438a0 ap6212
+PRODUCT_COPY_FILES += \
+    $(WIFI_FIRMWARE_PATH)/bcm43438a0/config_bcm43438a0.txt:$(TARGET_COPY_OUT_VENDOR)/lib/firmware/wifi/config_bcm43438a0.txt \
+    $(WIFI_FIRMWARE_PATH)/bcm43438a0/fw_bcm43438a0.bin:$(TARGET_COPY_OUT_VENDOR)/lib/firmware/wifi/fw_bcm43438a0.bin \
+    $(WIFI_FIRMWARE_PATH)/bcm43438a0/nvram_ap6212.txt:$(TARGET_COPY_OUT_VENDOR)/lib/firmware/wifi/nvram_ap6212.txt
+
+# bcm43455c0_ag ap6255
+PRODUCT_COPY_FILES += \
+    $(WIFI_FIRMWARE_PATH)/bcm43455c0_ag/clm_bcm43455c0_ag.blob:$(TARGET_COPY_OUT_VENDOR)/lib/firmware/wifi/clm_bcm43455c0_ag.blob \
+    $(WIFI_FIRMWARE_PATH)/bcm43455c0_ag/config_bcm43455c0_ag.txt:$(TARGET_COPY_OUT_VENDOR)/lib/firmware/wifi/config_bcm43455c0_ag.txt \
+    $(WIFI_FIRMWARE_PATH)/bcm43455c0_ag/fw_bcm43455c0_ag.bin:$(TARGET_COPY_OUT_VENDOR)/lib/firmware/wifi/fw_bcm43455c0_ag.bin \
+    $(WIFI_FIRMWARE_PATH)/bcm43455c0_ag/nvram_ap6255.txt:$(TARGET_COPY_OUT_VENDOR)/lib/firmware/wifi/nvram_ap6255.txt
+
+# bcm43456c5_ag ap6256
+PRODUCT_COPY_FILES += \
+    $(WIFI_FIRMWARE_PATH)/bcm43456c5_ag/config_bcm43456c5_ag.txt:$(TARGET_COPY_OUT_VENDOR)/lib/firmware/wifi/config_bcm43456c5_ag.txt \
+    $(WIFI_FIRMWARE_PATH)/bcm43456c5_ag/fw_bcm43456c5_ag.bin:$(TARGET_COPY_OUT_VENDOR)/lib/firmware/wifi/fw_bcm43456c5_ag.bin \
+    $(WIFI_FIRMWARE_PATH)/bcm43456c5_ag/nvram_ap6256.txt:$(TARGET_COPY_OUT_VENDOR)/lib/firmware/wifi/nvram_ap6256.txt
+
+# bcm4359c51a2_ag
+PRODUCT_COPY_FILES += \
+    $(WIFI_FIRMWARE_PATH)/bcm4359c51a2_ag/clm_bcm4359c51a2_ag.blob:$(TARGET_COPY_OUT_VENDOR)/lib/firmware/wifi/clm_bcm4359c51a2_ag.blob \
+    $(WIFI_FIRMWARE_PATH)/bcm4359c51a2_ag/config_bcm4359c51a2_ag.txt:$(TARGET_COPY_OUT_VENDOR)/lib/firmware/wifi/config_bcm4359c51a2_ag.txt \
+    $(WIFI_FIRMWARE_PATH)/bcm4359c51a2_ag/fw_bcm4359c51a2_ag.bin:$(TARGET_COPY_OUT_VENDOR)/lib/firmware/wifi/fw_bcm4359c51a2_ag.bin \
+    $(WIFI_FIRMWARE_PATH)/bcm4359c51a2_ag/fw_bcm4359c51a2_ag_apsta.bin:$(TARGET_COPY_OUT_VENDOR)/lib/firmware/wifi/fw_bcm4359c51a2_ag_apsta.bin \
+    $(WIFI_FIRMWARE_PATH)/bcm4359c51a2_ag/nvram_ap6398sr32.txt:$(TARGET_COPY_OUT_VENDOR)/lib/firmware/wifi/nvram_ap6398sr32.txt
+
+# bcm43751a1_ag
+PRODUCT_COPY_FILES += \
+    $(WIFI_FIRMWARE_PATH)/bcm43751a1_ag/clm_bcm43751a1_ag.blob:$(TARGET_COPY_OUT_VENDOR)/lib/firmware/wifi/clm_bcm43751a1_ag.blob \
+    $(WIFI_FIRMWARE_PATH)/bcm43751a1_ag/fw_bcm43751a1_ag.bin:$(TARGET_COPY_OUT_VENDOR)/lib/firmware/wifi/fw_bcm43751a1_ag.bin
