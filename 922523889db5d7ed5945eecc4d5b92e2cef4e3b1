@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "fea23b82_2d7f39e2",
+        "filename": "firmware/wifi.mk",
+        "patchSetId": 2
+      },
+      "lineNbr": 6,
+      "author": {
+        "id": 13648
+      },
+      "writtenOn": "2026-10-31T18:27:08Z",
+      "side": 1,
+      "message": "needs an update",
+      "revId": "922523889db5d7ed5945eecc4d5b92e2cef4e3b1",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
