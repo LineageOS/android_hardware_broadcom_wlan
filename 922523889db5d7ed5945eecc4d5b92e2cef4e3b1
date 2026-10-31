@@ -16,6 +16,24 @@
       "message": "needs an update",
       "revId": "922523889db5d7ed5945eecc4d5b92e2cef4e3b1",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "021195e9_849eadd1",
+        "filename": "firmware/wifi.mk",
+        "patchSetId": 2
+      },
+      "lineNbr": 6,
+      "author": {
+        "id": 16185
+      },
+      "writtenOn": "2026-10-31T18:28:46Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "fea23b82_2d7f39e2",
+      "revId": "922523889db5d7ed5945eecc4d5b92e2cef4e3b1",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
