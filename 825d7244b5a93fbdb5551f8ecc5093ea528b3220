@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "4d185657_f57e1559",
+        "filename": "bcmdhd/firmware/wifi.mk",
+        "patchSetId": 7
+      },
+      "lineNbr": 38,
+      "author": {
+        "id": 13648
+      },
+      "writtenOn": "2026-11-01T21:27:27Z",
+      "side": 1,
+      "message": "We will remove this. deadpool, nicepool, sabrina, wade and friends can all extract the official firmware blobs.",
+      "range": {
+        "startLine": 33,
+        "startChar": 0,
+        "endLine": 38,
+        "endChar": 4
+      },
+      "revId": "825d7244b5a93fbdb5551f8ecc5093ea528b3220",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
