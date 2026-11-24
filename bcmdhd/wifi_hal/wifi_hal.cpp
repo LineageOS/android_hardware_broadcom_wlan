@@ -429,6 +429,7 @@ wifi_error wifi_pre_initialize(void)
     if (socketpair(AF_UNIX, SOCK_STREAM, 0, halInfo->cleanup_socks) == -1) {
         ALOGE("Could not create cleanup sockets");
         free(halInfo);
+        halInfo = NULL;
         return WIFI_ERROR_UNKNOWN;
     }
 
@@ -436,6 +437,7 @@ wifi_error wifi_pre_initialize(void)
     if (cmd_sock == NULL) {
         ALOGE("Could not create handle");
         free(halInfo);
+        halInfo = NULL;
         return WIFI_ERROR_UNKNOWN;
     }
 
@@ -451,6 +453,7 @@ wifi_error wifi_pre_initialize(void)
     if (debug_cmd_sock == NULL) {
         ALOGE("Could not create debug_cmd_sock");
         free(halInfo);
+        halInfo = NULL;
         return WIFI_ERROR_UNKNOWN;
     }
 
@@ -466,6 +469,7 @@ wifi_error wifi_pre_initialize(void)
         nl_socket_free(cmd_sock);
         nl_socket_free(debug_cmd_sock);
         free(halInfo);
+        halInfo = NULL;
         return WIFI_ERROR_UNKNOWN;
     }
 
@@ -484,6 +488,7 @@ wifi_error wifi_pre_initialize(void)
         nl_socket_free(debug_cmd_sock);
         nl_socket_free(event_sock);
         free(halInfo);
+        halInfo = NULL;
         return WIFI_ERROR_UNKNOWN;
     }
 
@@ -512,6 +517,7 @@ wifi_error wifi_pre_initialize(void)
         nl_socket_free(debug_cmd_sock);
         nl_socket_free(event_sock);
         free(halInfo);
+        halInfo = NULL;
         return WIFI_ERROR_UNKNOWN;
     }
 
@@ -522,6 +528,7 @@ wifi_error wifi_pre_initialize(void)
         nl_socket_free(event_sock);
         nl_socket_free(debug_cmd_sock);
         free(halInfo);
+        halInfo = NULL;
         return WIFI_ERROR_UNKNOWN;
     }
     halInfo->debug_nl80211_family_id = debug_nl80211_family_id;
@@ -538,6 +545,7 @@ wifi_error wifi_pre_initialize(void)
         nl_socket_free(event_sock);
         pthread_mutex_destroy(&halInfo->cb_lock);
         free(halInfo);
+        halInfo = NULL;
         return WIFI_ERROR_NOT_AVAILABLE;
     }
 
@@ -551,6 +559,7 @@ wifi_error wifi_pre_initialize(void)
         nl_socket_free(event_sock);
         pthread_mutex_destroy(&halInfo->cb_lock);
         free(halInfo);
+        halInfo = NULL;
         return WIFI_ERROR_NOT_AVAILABLE;
     }
 
@@ -622,7 +631,9 @@ wifi_error wifi_wait_for_driver_ready(void)
     do {
         if ((fd = fopen("/sys/class/net/wlan0", "r")) != NULL) {
             fclose(fd);
-            status = wifi_pre_initialize();
+            if (halInfo == NULL) {
+                status = wifi_pre_initialize();
+            }
             return status;
         }
         usleep(POLL_DRIVER_DURATION_US);
@@ -684,6 +695,9 @@ static void internal_cleaned_up_handler(wifi_handle handle)
 
     DestroyResponseLock();
     pthread_mutex_destroy(&info->cb_lock);
+    if (info == halInfo) {
+        halInfo = NULL;
+    }
     free(info);
     info = NULL;
 
