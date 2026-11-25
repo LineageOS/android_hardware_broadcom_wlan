@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "98457a56_441dc1de",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 2
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 3917
+      },
+      "writtenOn": "2026-11-25T23:34:09Z",
+      "side": 1,
+      "message": "There is no proper explanation why this would fix phantom \"wifi not working\" problems for now - where people claim that dtbo flashing fixes something",
+      "revId": "808731a7206e99de52b8af7c6c892833712373d3",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
